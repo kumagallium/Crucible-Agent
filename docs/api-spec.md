@@ -12,7 +12,7 @@ Base URL: `http://localhost:8090`
 {
   "message": "NMC811正極のXRDパターンを解析して",
   "session_id": "optional-session-uuid",
-  "lab_config_id": "optional-lab-config-id",
+  "profile_config_id": "optional-lab-config-id",
   "options": {
     "max_turns": 10,
     "require_approval": false,
@@ -25,7 +25,7 @@ Base URL: `http://localhost:8090`
 |-------|------|----------|-------------|
 | message | string | yes | ユーザーのメッセージ |
 | session_id | string | no | 会話セッションID。省略時は新規作成 |
-| lab_config_id | string | no | ラボ設定ID（Layer 2プロンプト選択） |
+| profile_config_id | string | no | プロファイル設定ID（ドメインプロンプト選択） |
 | options.max_turns | int | no | 最大ループ回数（default: 10） |
 | options.require_approval | bool | no | tool実行前に承認を求めるか（default: false） |
 | options.model | string | no | 使用モデル名（default: 環境変数LLM_MODEL） |
@@ -70,7 +70,7 @@ ws://localhost:8090/agent/ws?session_id=optional-uuid
 {
   "type": "message",
   "content": "このデータを解析して",
-  "lab_config_id": "optional"
+  "profile_config_id": "optional"
 }
 ```
 
@@ -197,33 +197,44 @@ Crucibleから検出した利用可能ツール一覧を返す。
 }
 ```
 
-## POST /lab-config
+## POST /profile-config
 
-ラボ設定を登録・更新する（Layer 2プロンプト用）。
+ドメインプロファイル設定を登録・更新する（プロンプトカスタマイズ用）。
+プロファイルにより、エージェントの振る舞いをドメインに合わせて調整する。
 
 ### Request
 
 ```json
 {
-  "lab_name": "Tanaka Lab",
-  "instruments": [
-    {"name": "Bruker D8 Advance", "type": "XRD", "notes": "Cu-Kα, 40kV/40mA"},
-    {"name": "JEOL JSM-7800F", "type": "SEM", "notes": "FE-SEM with EDS"}
-  ],
-  "protocols": [
-    {"name": "XRD sample prep", "steps": "Cut 10mm disc, dry 120°C 2h vacuum"},
-    {"name": "Naming convention", "rule": "YYYYMMDD_SampleID_Method.csv"}
-  ],
+  "profile": "science",
+  "name": "Tanaka Lab",
+  "context": {
+    "instruments": [
+      {"name": "Bruker D8 Advance", "type": "XRD", "notes": "Cu-Kα, 40kV/40mA"},
+      {"name": "JEOL JSM-7800F", "type": "SEM", "notes": "FE-SEM with EDS"}
+    ],
+    "protocols": [
+      {"name": "XRD sample prep", "steps": "Cut 10mm disc, dry 120°C 2h vacuum"}
+    ]
+  },
   "custom_instructions": "測定前に必ずキャリブレーションを実施すること"
 }
 ```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| profile | string | yes | プロンプトプロファイル名（`templates/` 配下のディレクトリ名） |
+| name | string | yes | 設定の表示名 |
+| context | object | no | ドメイン固有のコンテキスト情報（プロファイルにより構造が異なる） |
+| custom_instructions | string | no | 追加のカスタム指示 |
 
 ### Response
 
 ```json
 {
-  "id": "lab-config-uuid",
-  "lab_name": "Tanaka Lab",
+  "id": "config-uuid",
+  "profile": "science",
+  "name": "Tanaka Lab",
   "created_at": "2026-03-16T10:00:00Z"
 }
 ```
