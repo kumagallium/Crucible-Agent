@@ -2,14 +2,13 @@
 
 ## 1. システム全体像
 
-Crucible Agentは4つの独立したdocker-composeユニットの1つとして動作する。
+Crucible Agentは独立したdocker-composeユニットとして動作し、任意のフロントエンドからMCPサーバー群を活用するエージェントランタイムを提供する。ドメイン固有の振る舞いはプロンプトプロファイルで切り替える。
 
 | Compose | コンポーネント | 役割 |
 |---------|------------|------|
-| A: ELN | Bocknote (Next.js) | 実験エディタ、チャットパネル |
-| **B: Crucible Agent** | **mcp-agent + LiteLLM + PROV-DM DB** | **エージェントランタイム** |
-| C: Crucible | Crucible API/UI + MCPサーバープール | MCPサーバーレジストリ |
-| D: Dify | Dify platform | GUIワークフロー工場（MCP公開） |
+| **Crucible Agent** | **mcp-agent + LiteLLM + PROV-DM DB** | **エージェントランタイム** |
+| Crucible | Crucible API/UI + MCPサーバープール | MCPサーバーレジストリ |
+| Frontend | 任意（ELN, Chat UI, Bot, CLI など） | ユーザーインターフェース |
 
 ### 通信プロトコル
 

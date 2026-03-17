@@ -1,7 +1,7 @@
 [project]
 name = "crucible-agent"
 version = "0.1.0"
-description = "AI agent runtime for scientific research — connects ELN to MCP servers via LLM"
+description = "AI agent runtime that connects any frontend to MCP servers via LLM — domain behavior is driven by swappable prompt profiles"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.12"
 dependencies = [

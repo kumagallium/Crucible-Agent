@@ -1,3 +1,3 @@
-"""Crucible Agent — 科学研究向け AI エージェントランタイム"""
+"""Crucible Agent — AI agent runtime connecting frontends to MCP servers via LLM"""
 
 __version__ = "0.1.0"
