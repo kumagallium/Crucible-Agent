@@ -13,7 +13,7 @@
 #   sudo bash setup.sh
 #
 # オプション:
-#   SSH_PORT=22022 sudo bash setup.sh   # SSH ポートを変更（デフォルト: 22022）
+#   SSH_PORT=<port> sudo bash setup.sh  # SSH ポートを変更（デフォルト: 22, 変更推奨）
 #
 # 注意:
 #   - SSH ポートが変更されるため、コンソール接続を推奨
@@ -22,7 +22,7 @@
 
 set -euo pipefail
 
-SSH_PORT="${SSH_PORT:-22022}"
+SSH_PORT="${SSH_PORT:-22}"
 
 # ==============================================================================
 # ログ関数
