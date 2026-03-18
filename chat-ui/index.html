@@ -166,20 +166,64 @@
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       margin-bottom: 6px;
-      transition: box-shadow 0.2s;
+      transition: all 0.2s;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .tool-item.disabled {
+      opacity: 0.45;
     }
 
     .tool-item:hover { box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+
+    .tool-item .tool-toggle {
+      flex-shrink: 0;
+      margin-top: 2px;
+      width: 32px;
+      height: 18px;
+      border-radius: var(--radius-full);
+      border: none;
+      cursor: pointer;
+      position: relative;
+      background: var(--border);
+      transition: background 0.2s;
+      padding: 0;
+    }
+
+    .tool-item .tool-toggle.on {
+      background: var(--primary);
+    }
+
+    .tool-item .tool-toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: white;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    }
+
+    .tool-item .tool-toggle.on::after {
+      transform: translateX(14px);
+    }
+
+    .tool-item .tool-info { flex: 1; min-width: 0; }
     .tool-item .name { font-size: 13px; font-weight: 600; color: var(--foreground); }
     .tool-item .desc { font-size: 11px; color: var(--muted-fg); margin-top: 2px; }
     .tool-item .transport {
       font-size: 10px;
       font-weight: 500;
       color: var(--primary);
-      float: right;
       background: var(--accent);
       padding: 1px 6px;
       border-radius: var(--radius-full);
+      float: right;
     }
 
     .source-info {
@@ -414,6 +458,7 @@
 
     let ws = null;
     let currentAgentMsg = null;
+    let toolStates = {}; // { name: true/false }
 
     // --- データ取得 ---
 
@@ -458,20 +503,50 @@
             toolListEl.innerHTML = '<div style="color:var(--muted-fg);font-size:12px;">ツールが見つかりません</div>';
             return;
           }
-          let html = '';
+          // 初回のみ全ツールを ON に
           for (const t of data.tools) {
-            html += `<div class="tool-item">
-              <span class="transport">${escapeHtml(t.transport)}</span>
-              <div class="name">${escapeHtml(t.display_name || t.name)}</div>
-              ${t.description ? `<div class="desc">${escapeHtml(t.description)}</div>` : ''}
-            </div>`;
+            if (!(t.name in toolStates)) toolStates[t.name] = true;
           }
-          for (const [k, s] of Object.entries(data.sources || {})) {
-            html += `<div class="source-info">${escapeHtml(k)}: ${s.server_count} servers</div>`;
-          }
-          toolListEl.innerHTML = html;
+          renderTools(data.tools, data.sources || {});
         })
         .catch(() => { toolListEl.textContent = '取得失敗'; });
+    }
+
+    function renderTools(tools, sources) {
+      let html = '';
+      for (const t of tools) {
+        const on = toolStates[t.name] !== false;
+        html += `<div class="tool-item ${on ? '' : 'disabled'}" data-tool="${escapeHtml(t.name)}">
+          <button class="tool-toggle ${on ? 'on' : ''}" data-tool="${escapeHtml(t.name)}" title="${on ? 'ON' : 'OFF'}"></button>
+          <div class="tool-info">
+            <span class="transport">${escapeHtml(t.transport)}</span>
+            <div class="name">${escapeHtml(t.display_name || t.name)}</div>
+            ${t.description ? `<div class="desc">${escapeHtml(t.description)}</div>` : ''}
+          </div>
+        </div>`;
+      }
+      for (const [k, s] of Object.entries(sources)) {
+        html += `<div class="source-info">${escapeHtml(k)}: ${s.server_count} servers</div>`;
+      }
+      toolListEl.innerHTML = html;
+
+      // トグルイベント
+      toolListEl.querySelectorAll('.tool-toggle').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const name = btn.dataset.tool;
+          toolStates[name] = !toolStates[name];
+          btn.classList.toggle('on', toolStates[name]);
+          btn.title = toolStates[name] ? 'ON' : 'OFF';
+          btn.closest('.tool-item').classList.toggle('disabled', !toolStates[name]);
+        });
+      });
+    }
+
+    function getEnabledTools() {
+      return Object.entries(toolStates)
+        .filter(([_, on]) => on)
+        .map(([name]) => name);
     }
 
     // --- WebSocket ---
@@ -539,6 +614,10 @@
       const payload = { type: 'message', content: text };
       if (profileEl.value) payload.profile = profileEl.value;
       if (customInstrEl.value.trim()) payload.custom_instructions = customInstrEl.value.trim();
+      const enabled = getEnabledTools();
+      if (enabled.length < Object.keys(toolStates).length) {
+        payload.server_names = enabled;
+      }
       ws.send(JSON.stringify(payload));
 
       inputEl.value = '';

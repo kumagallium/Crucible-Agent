@@ -144,10 +144,14 @@ async def agent_ws(websocket: WebSocket, session_id: str | None = None) -> None:
             if msg.get("type") == "message":
                 content = msg.get("content", "")
                 profile = msg.get("profile")
+                custom_instructions = msg.get("custom_instructions")
+                server_names = msg.get("server_names")
                 async for event in run_agent_stream(
                     message=content,
                     session_id=session_id,
                     profile=profile,
+                    custom_instructions=custom_instructions,
+                    server_names=server_names,
                 ):
                     await websocket.send_json({
                         "type": event.type,
