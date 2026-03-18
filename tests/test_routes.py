@@ -276,4 +276,5 @@ class TestAgentRunEndpoint:
             session_id="custom-session",
             profile="science",
             custom_instructions="Be concise",
+            server_names=None,
         )
