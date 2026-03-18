@@ -59,14 +59,16 @@
     }
 
     #sidebar .logo {
-      padding: 16px 20px;
+      padding: 12px 16px;
       border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-size: 16px;
-      font-weight: 600;
-      color: var(--primary);
+    }
+
+    #sidebar .logo img {
+      height: 100px;
+      margin: -40px -18px;
+      object-fit: contain;
     }
 
     .sidebar-section {
@@ -164,20 +166,64 @@
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
       margin-bottom: 6px;
-      transition: box-shadow 0.2s;
+      transition: all 0.2s;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .tool-item.disabled {
+      opacity: 0.45;
     }
 
     .tool-item:hover { box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+
+    .tool-item .tool-toggle {
+      flex-shrink: 0;
+      margin-top: 2px;
+      width: 32px;
+      height: 18px;
+      border-radius: var(--radius-full);
+      border: none;
+      cursor: pointer;
+      position: relative;
+      background: var(--border);
+      transition: background 0.2s;
+      padding: 0;
+    }
+
+    .tool-item .tool-toggle.on {
+      background: var(--primary);
+    }
+
+    .tool-item .tool-toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: white;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    }
+
+    .tool-item .tool-toggle.on::after {
+      transform: translateX(14px);
+    }
+
+    .tool-item .tool-info { flex: 1; min-width: 0; }
     .tool-item .name { font-size: 13px; font-weight: 600; color: var(--foreground); }
     .tool-item .desc { font-size: 11px; color: var(--muted-fg); margin-top: 2px; }
     .tool-item .transport {
       font-size: 10px;
       font-weight: 500;
       color: var(--primary);
-      float: right;
       background: var(--accent);
       padding: 1px 6px;
       border-radius: var(--radius-full);
+      float: right;
     }
 
     .source-info {
@@ -185,6 +231,110 @@
       font-size: 11px;
       color: var(--muted-fg);
     }
+
+    /* Plan モードトグル */
+    .plan-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 2px 0;
+    }
+
+    .plan-toggle-row .label {
+      font-size: 13px;
+      color: var(--foreground);
+    }
+
+    .plan-toggle-row .sublabel {
+      font-size: 11px;
+      color: var(--muted-fg);
+      margin-top: 2px;
+    }
+
+    .plan-toggle {
+      flex-shrink: 0;
+      width: 40px;
+      height: 22px;
+      border-radius: var(--radius-full);
+      border: none;
+      cursor: pointer;
+      position: relative;
+      background: var(--border);
+      transition: background 0.2s;
+      padding: 0;
+    }
+
+    .plan-toggle.on { background: var(--primary); }
+
+    .plan-toggle::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: white;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    }
+
+    .plan-toggle.on::after { transform: translateX(18px); }
+
+    /* 承認リクエスト */
+    .msg.approval {
+      align-self: flex-start;
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      border-radius: var(--radius-lg);
+      max-width: 70%;
+    }
+
+    .msg.approval .approval-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--warn-fg);
+      margin-bottom: 6px;
+    }
+
+    .msg.approval .approval-detail {
+      font-size: 11px;
+      color: var(--muted-fg);
+      font-family: ui-monospace, 'SF Mono', monospace;
+      margin-bottom: 10px;
+    }
+
+    .msg.approval .approval-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .msg.approval .approval-actions button {
+      padding: 5px 16px;
+      border-radius: var(--radius-lg);
+      font-size: 12px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      border: 1px solid;
+      transition: all 0.2s;
+    }
+
+    .btn-approve {
+      background: var(--primary);
+      color: var(--primary-fg);
+      border-color: var(--primary) !important;
+    }
+
+    .btn-approve:hover { background: #3d6844; }
+
+    .btn-reject {
+      background: var(--card);
+      color: var(--error-fg);
+      border-color: var(--error-border) !important;
+    }
+
+    .btn-reject:hover { background: var(--error-bg); }
 
     /* --- メインエリア --- */
     #main {
@@ -358,7 +508,7 @@
 <body>
   <!-- サイドバー -->
   <div id="sidebar">
-    <div class="logo">⚗️ Crucible Agent</div>
+    <div class="logo"><img src="/chat-ui/logo.png" alt="Crucible Agent"></div>
 
     <!-- ヘルスステータス -->
     <div class="sidebar-section" id="health-section">
@@ -374,6 +524,18 @@
       </select>
       <label>カスタム指示</label>
       <textarea id="custom-instructions" placeholder="追加の指示（任意）..."></textarea>
+    </div>
+
+    <!-- Plan モード -->
+    <div class="sidebar-section">
+      <h3>Plan Mode</h3>
+      <div class="plan-toggle-row">
+        <div>
+          <div class="label">ツール実行前に確認</div>
+          <div class="sublabel">ON にするとツール実行前に承認を求めます</div>
+        </div>
+        <button id="plan-toggle" class="plan-toggle" title="OFF"></button>
+      </div>
     </div>
 
     <!-- ツール一覧 -->
@@ -410,8 +572,12 @@
     const toolListEl = document.getElementById('tool-list');
     const headerInfoEl = document.getElementById('header-info');
 
+    const planToggleBtn = document.getElementById('plan-toggle');
+
     let ws = null;
     let currentAgentMsg = null;
+    let toolStates = {}; // { name: true/false }
+    let planMode = false;
 
     // --- データ取得 ---
 
@@ -456,20 +622,50 @@
             toolListEl.innerHTML = '<div style="color:var(--muted-fg);font-size:12px;">ツールが見つかりません</div>';
             return;
           }
-          let html = '';
+          // 初回のみ全ツールを ON に
           for (const t of data.tools) {
-            html += `<div class="tool-item">
-              <span class="transport">${escapeHtml(t.transport)}</span>
-              <div class="name">${escapeHtml(t.display_name || t.name)}</div>
-              ${t.description ? `<div class="desc">${escapeHtml(t.description)}</div>` : ''}
-            </div>`;
+            if (!(t.name in toolStates)) toolStates[t.name] = true;
           }
-          for (const [k, s] of Object.entries(data.sources || {})) {
-            html += `<div class="source-info">${escapeHtml(k)}: ${s.server_count} servers</div>`;
-          }
-          toolListEl.innerHTML = html;
+          renderTools(data.tools, data.sources || {});
         })
         .catch(() => { toolListEl.textContent = '取得失敗'; });
+    }
+
+    function renderTools(tools, sources) {
+      let html = '';
+      for (const t of tools) {
+        const on = toolStates[t.name] !== false;
+        html += `<div class="tool-item ${on ? '' : 'disabled'}" data-tool="${escapeHtml(t.name)}">
+          <button class="tool-toggle ${on ? 'on' : ''}" data-tool="${escapeHtml(t.name)}" title="${on ? 'ON' : 'OFF'}"></button>
+          <div class="tool-info">
+            <span class="transport">${escapeHtml(t.transport)}</span>
+            <div class="name">${escapeHtml(t.display_name || t.name)}</div>
+            ${t.description ? `<div class="desc">${escapeHtml(t.description)}</div>` : ''}
+          </div>
+        </div>`;
+      }
+      for (const [k, s] of Object.entries(sources)) {
+        html += `<div class="source-info">${escapeHtml(k)}: ${s.server_count} servers</div>`;
+      }
+      toolListEl.innerHTML = html;
+
+      // トグルイベント
+      toolListEl.querySelectorAll('.tool-toggle').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const name = btn.dataset.tool;
+          toolStates[name] = !toolStates[name];
+          btn.classList.toggle('on', toolStates[name]);
+          btn.title = toolStates[name] ? 'ON' : 'OFF';
+          btn.closest('.tool-item').classList.toggle('disabled', !toolStates[name]);
+        });
+      });
+    }
+
+    function getEnabledTools() {
+      return Object.entries(toolStates)
+        .filter(([_, on]) => on)
+        .map(([name]) => name);
     }
 
     // --- WebSocket ---
@@ -506,6 +702,9 @@
           currentAgentMsg.textContent += data.content;
           scrollToBottom();
           break;
+        case 'approval_request':
+          addApprovalMsg(data.tool_call_id, data.tool_name, data.input, data.content);
+          break;
         case 'tool_start':
           addToolMsg(`🔧 ${data.tool_name}`, JSON.stringify(data.input, null, 2));
           break;
@@ -537,6 +736,11 @@
       const payload = { type: 'message', content: text };
       if (profileEl.value) payload.profile = profileEl.value;
       if (customInstrEl.value.trim()) payload.custom_instructions = customInstrEl.value.trim();
+      const enabled = getEnabledTools();
+      if (enabled.length < Object.keys(toolStates).length) {
+        payload.server_names = enabled;
+      }
+      if (planMode) payload.require_approval = true;
       ws.send(JSON.stringify(payload));
 
       inputEl.value = '';
@@ -544,6 +748,7 @@
       sendBtn.disabled = true;
       inputEl.disabled = true;
       currentAgentMsg = null;
+      addSystemMsg('考え中...');
     }
 
     // --- DOM ヘルパー ---
@@ -563,6 +768,35 @@
       el.innerHTML = `<div class="tool-label">${escapeHtml(label)}</div><code>${escapeHtml(detail)}</code>`;
       messagesEl.appendChild(el);
       scrollToBottom();
+    }
+
+    function addApprovalMsg(toolCallId, toolName, toolInput, message) {
+      const el = document.createElement('div');
+      el.className = 'msg approval';
+      el.innerHTML = `
+        <div class="approval-label">⚠️ ${escapeHtml(message || 'ツールを実行してよいですか？')}</div>
+        <div class="approval-detail">${escapeHtml(toolName)}: ${escapeHtml(JSON.stringify(toolInput, null, 2))}</div>
+        <div class="approval-actions">
+          <button class="btn-approve" data-id="${escapeHtml(toolCallId)}">実行する</button>
+          <button class="btn-reject" data-id="${escapeHtml(toolCallId)}">拒否</button>
+        </div>`;
+      messagesEl.appendChild(el);
+      scrollToBottom();
+
+      el.querySelector('.btn-approve').addEventListener('click', () => {
+        sendApproval(toolCallId, true);
+        el.querySelector('.approval-actions').innerHTML = '<span style="color:var(--running-fg);font-size:12px;">✅ 承認しました</span>';
+      });
+      el.querySelector('.btn-reject').addEventListener('click', () => {
+        sendApproval(toolCallId, false);
+        el.querySelector('.approval-actions').innerHTML = '<span style="color:var(--error-fg);font-size:12px;">❌ 拒否しました</span>';
+      });
+    }
+
+    function sendApproval(toolCallId, approved) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'approval', tool_call_id: toolCallId, approved }));
+      }
     }
 
     function addSystemMsg(text) {
@@ -598,6 +832,12 @@
     });
 
     sendBtn.addEventListener('click', send);
+
+    planToggleBtn.addEventListener('click', () => {
+      planMode = !planMode;
+      planToggleBtn.classList.toggle('on', planMode);
+      planToggleBtn.title = planMode ? 'ON' : 'OFF';
+    });
 
     // --- 初期化 ---
     loadHealth();

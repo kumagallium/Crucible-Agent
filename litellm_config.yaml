@@ -8,6 +8,8 @@ model_list:
       model: openai/gpt-oss-120b
       api_base: os.environ/SAKURA_AI_API_BASE
       api_key: os.environ/SAKURA_AI_API_KEY
+      supports_function_calling: true
+      merge_reasoning_content_in_choices: true
 
   # Ollama（ローカル開発用、オプション）
   # - model_name: ollama-local
@@ -21,4 +23,5 @@ general_settings:
 
 litellm_settings:
   drop_params: true  # 未対応パラメータを自動除外
+  modify_params: true  # メッセージ形式を自動変換
   # set_verbose: true  # デバッグ時に有効化
