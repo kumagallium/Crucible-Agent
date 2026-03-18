@@ -26,7 +26,7 @@ from crucible_agent.api.schemas import (
 from crucible_agent.config import settings
 from crucible_agent.crucible.discovery import discover_servers
 from crucible_agent.prompts.loader import list_profiles
-from crucible_agent.provenance.recorder import get_session_history, record_agent_run
+from crucible_agent.provenance.recorder import get_session_history, list_sessions, record_agent_run
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -131,8 +131,14 @@ async def agent_run(req: AgentRunRequest) -> AgentRunResponse:
     )
 
 
+@router.get("/provenance")
+async def provenance_sessions() -> list[dict]:
+    """全セッション一覧を返す（最新順）"""
+    return await list_sessions()
+
+
 @router.get("/provenance/{session_id}")
-async def provenance(session_id: str) -> list[dict]:
+async def provenance_detail(session_id: str) -> list[dict]:
     """セッションの来歴（PROV-DM Activity チェーン）を返す"""
     return await get_session_history(session_id)
 

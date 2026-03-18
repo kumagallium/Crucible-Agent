@@ -91,6 +91,34 @@ async def record_agent_run(
         return activity.id
 
 
+async def list_sessions() -> list[dict]:
+    """全セッション一覧を取得する（最新順）"""
+    from sqlalchemy import func, select
+
+    async with _session_factory() as db:
+        result = await db.execute(
+            select(
+                ProvenanceActivity.session_id,
+                func.min(ProvenanceActivity.started_at).label("first_at"),
+                func.max(ProvenanceActivity.started_at).label("last_at"),
+                func.count(ProvenanceActivity.id).label("count"),
+            )
+            .group_by(ProvenanceActivity.session_id)
+            .order_by(func.max(ProvenanceActivity.started_at).desc())
+            .limit(50)
+        )
+        rows = result.all()
+        return [
+            {
+                "session_id": r.session_id,
+                "first_at": r.first_at.isoformat() if r.first_at else None,
+                "last_at": r.last_at.isoformat() if r.last_at else None,
+                "activity_count": r.count,
+            }
+            for r in rows
+        ]
+
+
 async def get_session_history(session_id: str) -> list[dict]:
     """セッションの来歴を取得する"""
     from sqlalchemy import select

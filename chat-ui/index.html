@@ -872,8 +872,13 @@
 
     // --- WebSocket ---
 
-    // セッション ID を生成（WebSocket 接続ごとに固定）
-    const wsSessionId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36);
+    // セッション ID を localStorage に保存（更新しても維持）
+    const STORAGE_KEY = 'crucible_session_id';
+    let wsSessionId = localStorage.getItem(STORAGE_KEY);
+    if (!wsSessionId) {
+      wsSessionId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36);
+      localStorage.setItem(STORAGE_KEY, wsSessionId);
+    }
 
     function connect() {
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -1177,29 +1182,54 @@
 
     historyBtn.addEventListener('click', () => {
       historyPanel.classList.toggle('open');
-      if (historyPanel.classList.contains('open')) loadHistory();
+      if (historyPanel.classList.contains('open')) loadSessionList();
     });
     historyClose.addEventListener('click', () => historyPanel.classList.remove('open'));
 
-    function loadHistory() {
-      if (!ws || !ws.url) return;
-      // session_id は WebSocket 接続時にサーバーが生成
-      // /provenance/ API で取得するには session_id が必要
-      // WebSocket の session_id をヘッダーから取得できないので、
-      // done イベント後に provenance を取得する
-      const sid = sessionDisplay.dataset.sessionId;
-      if (!sid) {
-        historyBody.innerHTML = '<div style="color:var(--muted-fg);font-size:12px;">まだ会話がありません</div>';
-        return;
-      }
-      fetch(`/provenance/${sid}`)
+    function loadSessionList() {
+      historyBody.innerHTML = '<div style="color:var(--muted-fg);font-size:12px;">読み込み中...</div>';
+      fetch('/provenance')
         .then(r => r.json())
-        .then(items => {
-          if (!items.length) {
+        .then(sessions => {
+          if (!sessions.length) {
             historyBody.innerHTML = '<div style="color:var(--muted-fg);font-size:12px;">記録がありません</div>';
             return;
           }
           let html = '';
+          for (const s of sessions) {
+            const isCurrent = s.session_id === wsSessionId;
+            const time = s.last_at ? new Date(s.last_at).toLocaleString('ja-JP') : '';
+            const shortId = s.session_id.slice(0, 8);
+            html += `<div class="history-item" style="cursor:pointer;${isCurrent ? 'border-color:var(--primary);' : ''}" data-sid="${escapeHtml(s.session_id)}">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span class="hi-tool" style="font-family:ui-monospace,'SF Mono',monospace;font-size:11px;">${escapeHtml(shortId)}${isCurrent ? ' (現在)' : ''}</span>
+                <span class="hi-time">${escapeHtml(time)}</span>
+              </div>
+              <div style="font-size:11px;color:var(--muted-fg);margin-top:2px;">${s.activity_count} アクティビティ</div>
+            </div>`;
+          }
+          historyBody.innerHTML = html;
+
+          // クリックでセッション詳細を表示
+          historyBody.querySelectorAll('.history-item[data-sid]').forEach(el => {
+            el.addEventListener('click', () => loadSessionDetail(el.dataset.sid));
+          });
+        })
+        .catch(() => {
+          historyBody.innerHTML = '<div style="color:var(--muted-fg);font-size:12px;">取得失敗</div>';
+        });
+    }
+
+    function loadSessionDetail(sid) {
+      historyBody.innerHTML = '<div style="color:var(--muted-fg);font-size:12px;">読み込み中...</div>';
+      fetch(`/provenance/${sid}`)
+        .then(r => r.json())
+        .then(items => {
+          let html = `<div style="margin-bottom:8px;"><button id="history-back" style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:12px;font-family:inherit;">← セッション一覧</button></div>`;
+          html += `<div style="font-size:11px;color:var(--muted-fg);margin-bottom:10px;font-family:ui-monospace,'SF Mono',monospace;">${escapeHtml(sid)}</div>`;
+          if (!items.length) {
+            html += '<div style="color:var(--muted-fg);font-size:12px;">アクティビティがありません</div>';
+          }
           for (const item of items) {
             const typeClass = item.type || '';
             const time = item.started_at ? new Date(item.started_at).toLocaleString('ja-JP') : '';
@@ -1211,10 +1241,20 @@
             </div>`;
           }
           historyBody.innerHTML = html;
+          document.getElementById('history-back')?.addEventListener('click', loadSessionList);
         })
         .catch(() => {
           historyBody.innerHTML = '<div style="color:var(--muted-fg);font-size:12px;">取得失敗</div>';
         });
+    }
+
+    // 新しいセッション開始
+    function newSession() {
+      wsSessionId = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36);
+      localStorage.setItem(STORAGE_KEY, wsSessionId);
+      messagesEl.innerHTML = '';
+      if (ws) ws.close();
+      connect();
     }
 
     planToggleBtn.addEventListener('click', () => {
