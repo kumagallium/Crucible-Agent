@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 import httpx
 
@@ -49,18 +50,22 @@ async def discover_servers() -> list[DiscoveredServer]:
         logger.warning("Crucible Registry に接続できません (%s)", settings.crucible_api_url)
         return []
 
+    # Registry API のホスト部分を MCP サーバーのホストとして使う
+    # (Docker 内部 IP ではなく VPN IP 等の到達可能なアドレス)
+    crucible_host = urlparse(settings.crucible_api_url).hostname or "localhost"
+
     discovered: list[DiscoveredServer] = []
     for s in servers:
         if s.get("status") != "running":
             continue
 
         endpoint_path = s.get("endpoint_path", "/sse")
-        static_ip = s.get("static_ip", "")
         port = s.get("port", 8000)
 
         # トランスポート判定: /mcp → streamable-http, /sse → sse
         transport = "streamable-http" if endpoint_path == "/mcp" else "sse"
-        url = f"http://{static_ip}:{port}{endpoint_path}"
+        # Registry と同じホストにポートでアクセス（Docker 内部 IP は使わない）
+        url = f"http://{crucible_host}:{port}{endpoint_path}"
 
         discovered.append(
             DiscoveredServer(
