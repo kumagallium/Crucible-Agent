@@ -34,6 +34,8 @@ services:
       - ./litellm_config.yaml:/app/config.yaml:ro
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     env_file: .env
+    environment:
+      - DATABASE_URL=
     restart: unless-stopped
 
   postgres:

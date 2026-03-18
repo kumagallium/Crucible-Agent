@@ -17,7 +17,7 @@ model_list:
 
 general_settings:
   master_key: sk-crucible-agent-dev
-  # store_model_in_db: false  # 開発時はDBなしでOK
+  store_model_in_db: false
 
 litellm_settings:
   drop_params: true  # 未対応パラメータを自動除外
