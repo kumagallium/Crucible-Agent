@@ -15,6 +15,8 @@ from crucible_agent.api.schemas import (
     AgentRunRequest,
     AgentRunResponse,
     HealthResponse,
+    ProfileInfo,
+    ProfilesResponse,
     TokenUsage,
     ToolInfo,
     ToolSourceInfo,
@@ -22,6 +24,7 @@ from crucible_agent.api.schemas import (
 )
 from crucible_agent.config import settings
 from crucible_agent.crucible.discovery import discover_servers
+from crucible_agent.prompts.loader import list_profiles
 from crucible_agent.provenance.recorder import record_agent_run
 
 logger = logging.getLogger(__name__)
@@ -86,12 +89,22 @@ async def tools() -> ToolsResponse:
     return ToolsResponse(tools=tool_list, sources=sources)
 
 
+@router.get("/profiles", response_model=ProfilesResponse)
+async def profiles() -> ProfilesResponse:
+    """利用可能なプロンプトプロファイル一覧を返す"""
+    return ProfilesResponse(
+        profiles=[ProfileInfo(name=p) for p in list_profiles()]
+    )
+
+
 @router.post("/agent/run", response_model=AgentRunResponse)
 async def agent_run(req: AgentRunRequest) -> AgentRunResponse:
     """エージェントを同期実行し結果を返す"""
     result = await run_agent(
         message=req.message,
         session_id=req.session_id,
+        profile=req.profile,
+        custom_instructions=req.custom_instructions,
     )
 
     # PROV-DM 来歴記録
@@ -129,9 +142,11 @@ async def agent_ws(websocket: WebSocket, session_id: str | None = None) -> None:
 
             if msg.get("type") == "message":
                 content = msg.get("content", "")
+                profile = msg.get("profile")
                 async for event in run_agent_stream(
                     message=content,
                     session_id=session_id,
+                    profile=profile,
                 ):
                     await websocket.send_json({
                         "type": event.type,
