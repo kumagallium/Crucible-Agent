@@ -288,31 +288,33 @@
       border: 1px solid var(--warn-border);
       border-radius: var(--radius-lg);
       max-width: 70%;
+      padding: 8px 12px;
     }
 
     .msg.approval .approval-label {
       font-size: 12px;
       font-weight: 600;
       color: var(--warn-fg);
-      margin-bottom: 6px;
+      margin-bottom: 4px;
     }
 
     .msg.approval .approval-detail {
-      font-size: 11px;
+      font-size: 10px;
       color: var(--muted-fg);
       font-family: ui-monospace, 'SF Mono', monospace;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
+      white-space: pre-wrap;
     }
 
     .msg.approval .approval-actions {
       display: flex;
-      gap: 8px;
+      gap: 6px;
     }
 
     .msg.approval .approval-actions button {
-      padding: 5px 16px;
+      padding: 4px 14px;
       border-radius: var(--radius-lg);
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 500;
       font-family: inherit;
       cursor: pointer;
@@ -382,17 +384,17 @@
     #messages {
       flex: 1;
       overflow-y: auto;
-      padding: 20px;
+      padding: 16px;
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 8px;
     }
 
     .msg {
       max-width: 75%;
-      padding: 12px 16px;
+      padding: 10px 14px;
       border-radius: var(--radius-xl);
-      line-height: 1.7;
+      line-height: 1.6;
       font-size: 14px;
       white-space: pre-wrap;
       word-break: break-word;
@@ -481,26 +483,67 @@
       margin: 12px 0;
     }
 
-    .msg.tool {
+    /* ツール実行ステップ（折りたたみ） */
+    .tool-steps {
       align-self: flex-start;
-      background: var(--info-bg);
-      border: 1px solid var(--info-border);
-      border-radius: var(--radius-lg);
+      max-width: 80%;
+      margin: 2px 0;
+    }
+
+    .tool-steps summary {
+      cursor: pointer;
       font-size: 12px;
-      max-width: 60%;
+      color: var(--muted-fg);
+      padding: 4px 8px;
+      border-radius: var(--radius-lg);
+      background: var(--muted);
+      border: 1px solid var(--border);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
     }
 
-    .msg.tool .tool-label {
+    .tool-steps summary:hover { background: var(--accent); }
+
+    .tool-steps summary::before {
+      content: '▶';
+      font-size: 9px;
+      transition: transform 0.2s;
+    }
+
+    .tool-steps[open] summary::before {
+      transform: rotate(90deg);
+    }
+
+    .tool-steps .step {
+      padding: 6px 10px;
+      margin: 4px 0 4px 16px;
+      border-left: 2px solid var(--border);
       font-size: 11px;
-      font-weight: 600;
+    }
+
+    .tool-steps .step.start {
       color: var(--info-fg);
-      margin-bottom: 4px;
     }
 
-    .msg.tool code {
-      font-size: 11px;
+    .tool-steps .step.end {
+      color: var(--running-fg);
+    }
+
+    .tool-steps .step.rejected {
+      color: var(--error-fg);
+    }
+
+    .tool-steps .step code {
+      font-size: 10px;
       color: var(--muted-fg);
       font-family: ui-monospace, 'SF Mono', monospace;
+      display: block;
+      margin-top: 3px;
+      white-space: pre-wrap;
+      word-break: break-all;
     }
 
     .msg.system {
@@ -774,20 +817,23 @@
           addApprovalMsg(data.tool_call_id, data.tool_name, data.input, data.content);
           break;
         case 'tool_start':
-          addToolMsg(`🔧 ${data.tool_name}`, JSON.stringify(data.input, null, 2));
+          addToolStep('start', data.tool_name, data.input);
           break;
         case 'tool_end':
-          addToolMsg(`✅ ${data.tool_name} (${data.duration_ms}ms)`, JSON.stringify(data.output, null, 2));
+          addToolStep('end', data.tool_name, data.output, data.duration_ms);
           break;
         case 'done':
+          finalizeToolSteps();
           if (currentAgentMsg) {
             currentAgentMsg.classList.remove('typing');
-            // 最終レンダリング
             if (currentAgentMsg._rawText) {
               currentAgentMsg.innerHTML = renderMarkdown(currentAgentMsg._rawText);
             }
             currentAgentMsg = null;
           }
+          // 「考え中...」を削除
+          const thinkingMsgs = messagesEl.querySelectorAll('.msg.system');
+          thinkingMsgs.forEach(m => { if (m.textContent === '考え中...') m.remove(); });
           sendBtn.disabled = false;
           inputEl.disabled = false;
           inputEl.focus();
@@ -840,6 +886,56 @@
       el.innerHTML = `<div class="tool-label">${escapeHtml(label)}</div><code>${escapeHtml(detail)}</code>`;
       messagesEl.appendChild(el);
       scrollToBottom();
+    }
+
+    // ツールステップの折りたたみ管理
+    let currentToolDetails = null;
+    let toolStepCount = 0;
+
+    function getOrCreateToolDetails() {
+      if (!currentToolDetails) {
+        const details = document.createElement('details');
+        details.className = 'tool-steps';
+        const summary = document.createElement('summary');
+        summary.textContent = 'ツール実行中...';
+        details.appendChild(summary);
+        messagesEl.appendChild(details);
+        currentToolDetails = details;
+        toolStepCount = 0;
+      }
+      return currentToolDetails;
+    }
+
+    function addToolStep(type, toolName, data, durationMs) {
+      const details = getOrCreateToolDetails();
+      const step = document.createElement('div');
+      step.className = `step ${type}`;
+
+      if (type === 'start') {
+        step.innerHTML = `🔧 <strong>${escapeHtml(toolName)}</strong><code>${escapeHtml(JSON.stringify(data, null, 2))}</code>`;
+        toolStepCount++;
+      } else if (type === 'end') {
+        const rejected = data && data.rejected;
+        step.className = `step ${rejected ? 'rejected' : 'end'}`;
+        const label = rejected ? `❌ ${toolName} — 拒否` : `✅ ${toolName} (${durationMs}ms)`;
+        step.innerHTML = `${escapeHtml(label)}<code>${escapeHtml(JSON.stringify(data, null, 2))}</code>`;
+      }
+
+      details.appendChild(step);
+
+      // サマリーを更新
+      const summary = details.querySelector('summary');
+      summary.textContent = `🔧 ${toolStepCount} ツール実行`;
+      scrollToBottom();
+    }
+
+    function finalizeToolSteps() {
+      if (currentToolDetails) {
+        const summary = currentToolDetails.querySelector('summary');
+        summary.textContent = `✅ ${toolStepCount} ツール実行完了`;
+        currentToolDetails = null;
+        toolStepCount = 0;
+      }
     }
 
     function addApprovalMsg(toolCallId, toolName, toolInput, message) {
