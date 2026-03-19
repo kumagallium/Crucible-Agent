@@ -8,12 +8,10 @@ import logging
 import uuid
 
 import httpx
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 
 from crucible_agent import __version__
 from crucible_agent.agent.runner import run_agent, run_agent_stream
-from fastapi import HTTPException
-
 from crucible_agent.api.schemas import (
     AgentRunRequest,
     AgentRunResponse,

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
@@ -72,7 +72,7 @@ async def update_profile(
             profile.description = description
         if content is not None:
             profile.content = content
-        profile.updated_at = datetime.now(timezone.utc)
+        profile.updated_at = datetime.now(UTC)
 
         await db.commit()
         await db.refresh(profile)
@@ -91,7 +91,7 @@ async def delete_profile(profile_id: str) -> bool:
             return False
 
         profile.is_active = False
-        profile.updated_at = datetime.now(timezone.utc)
+        profile.updated_at = datetime.now(UTC)
         await db.commit()
         logger.info("Profile deleted: %s (id=%s)", profile.name, profile.id)
         return True

@@ -37,7 +37,7 @@ async def build_instruction(
         found = await get_profile(profile) or await get_profile_by_name(profile)
         if found:
             instruction = BASE_PROMPT + "\n\n" + found.content
-            logger.info("Loaded profile '%s' (id=%s, %d chars)", found.name, found.id, len(instruction))
+            logger.info("Loaded profile '%s' (id=%s, %d chars)", found.name, found.id, len(instruction))  # noqa: E501
         else:
             logger.warning("Profile '%s' not found in DB, using base prompt", profile)
 
