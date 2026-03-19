@@ -1198,8 +1198,9 @@
       padding: 0;
     }
 
-    /* ===== プロファイル管理モーダル ===== */
-    #profile-modal-overlay {
+    /* ===== プロファイル管理モーダル / モデル管理モーダル ===== */
+    #profile-modal-overlay,
+    #model-modal-overlay {
       display: none;
       position: fixed;
       inset: 0;
@@ -1209,8 +1210,22 @@
       justify-content: center;
     }
 
-    #profile-modal-overlay.open {
+    #profile-modal-overlay.open,
+    #model-modal-overlay.open {
       display: flex;
+    }
+
+    #model-modal {
+      background: var(--card);
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--border);
+      width: 560px;
+      max-width: calc(100vw - 32px);
+      max-height: calc(100vh - 48px);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+      overflow: hidden;
     }
 
     #profile-modal {
@@ -1662,6 +1677,18 @@
     </div>
   </div>
 
+  <!-- ===== モデル管理モーダル ===== -->
+  <div id="model-modal-overlay">
+    <div id="model-modal">
+      <div class="pm-header">
+        <h2 id="mm-modal-title">モデル管理</h2>
+        <button class="pm-close-btn" id="mm-close-btn" title="閉じる">&#x2715;</button>
+      </div>
+      <div class="pm-body" id="mm-body">
+      </div>
+    </div>
+  </div>
+
   <script>
     const messagesEl = document.getElementById('messages');
     const inputEl = document.getElementById('input');
@@ -2078,9 +2105,9 @@
           const defaultModel = data.default || '';
           (data.models || []).forEach(m => {
             const opt = document.createElement('option');
-            opt.value = m.id;
+            opt.value = m.name;
             opt.textContent = m.name + (m.provider !== 'unknown' ? ` (${m.provider})` : '');
-            if (m.id === defaultModel) opt.selected = true;
+            if (m.name === defaultModel) opt.selected = true;
             modelSelectEl.appendChild(opt);
           });
           if (currentVal) modelSelectEl.value = currentVal;
@@ -3160,6 +3187,10 @@
             const sourceId = e.target;   // 引用元（クロスセッション）
             const derivedId = e.source;  // 影響を受けた Entity（このセッション）
 
+            // このセッションの Entity が参照した場合のみ処理
+            if (!sessionEntityIds.has(derivedId)) continue;
+            // 引用元がこのセッション内ならクロスセッション位置計算不要
+            if (sessionEntityIds.has(sourceId)) continue;
             if (!crossSessionPos[sourceId]) {
               // 引用元にまだ列が割り当てられていなければ新規列
               if (!crossColMap[sourceId]) {
@@ -3279,6 +3310,182 @@
     // セッション切り替え・新規チャット時にモバイルサイドバーを閉じる
     sessionListEl.addEventListener('click', () => closeSidebar());
     newChatBtn.addEventListener('click', () => closeSidebar());
+
+    // --- モデル管理モーダル ---
+    const modelModalOverlay = document.getElementById('model-modal-overlay');
+    const mmBody = document.getElementById('mm-body');
+    const mmModalTitle = document.getElementById('mm-modal-title');
+    const mmCloseBtn = document.getElementById('mm-close-btn');
+    const modelManageBtn = document.getElementById('model-manage-btn');
+
+    function openModelModal() {
+      modelModalOverlay.classList.add('open');
+      renderModelList();
+    }
+    function closeModelModal() {
+      modelModalOverlay.classList.remove('open');
+    }
+
+    modelManageBtn.addEventListener('click', openModelModal);
+    mmCloseBtn.addEventListener('click', closeModelModal);
+    modelModalOverlay.addEventListener('click', (e) => {
+      if (e.target === modelModalOverlay) closeModelModal();
+    });
+
+    // プロバイダー定義
+    const MODEL_PROVIDERS = [
+      { id: 'openai', name: 'OpenAI', models: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'o3-mini'] },
+      { id: 'anthropic', name: 'Anthropic', models: ['claude-sonnet-4-20250514', 'claude-haiku-4-5-20251001', 'claude-opus-4-20250514'] },
+      { id: 'gemini', name: 'Google Gemini', models: ['gemini-2.5-pro-preview-06-05', 'gemini-2.5-flash-preview-05-20'] },
+      { id: 'groq', name: 'Groq', models: ['llama-3.3-70b-versatile', 'mixtral-8x7b-32768'] },
+      { id: 'ollama', name: 'Ollama (local)', models: ['llama3.2', 'mistral', 'codellama'] },
+    ];
+
+    async function renderModelList() {
+      mmModalTitle.textContent = 'モデル管理';
+      mmBody.innerHTML = '<div style="color:var(--muted-fg);font-size:13px;text-align:center;padding:24px 0;">読み込み中...</div>';
+      let models = [];
+      try {
+        const data = await fetch('/models').then(r => r.json());
+        models = data.models || [];
+      } catch {
+        mmBody.innerHTML = '<div style="color:var(--error-fg);font-size:13px;text-align:center;padding:24px 0;">取得に失敗しました</div>';
+        return;
+      }
+
+      let html = '<div class="pm-list-header"><button class="pm-new-btn" id="mm-new-btn">＋ モデル追加</button></div>';
+      if (models.length === 0) {
+        html += '<div class="pm-empty">モデルがありません</div>';
+      } else {
+        for (const m of models) {
+          const canDelete = m.db_model === true;
+          html += `
+            <div class="pm-profile-card">
+              <div class="pm-card-top">
+                <div class="pm-card-info">
+                  <div class="pm-card-name">${m.name}</div>
+                  <div class="pm-card-desc">${m.provider} / ${m.model_id}</div>
+                </div>
+                <div class="pm-card-actions">
+                  ${canDelete ? `<button class="pm-card-delete-btn mm-delete-btn" data-id="${m.id}" title="削除">&#x2715;</button>` : '<span style="font-size:11px;color:var(--muted-fg)">config</span>'}
+                </div>
+              </div>
+            </div>`;
+        }
+      }
+      mmBody.innerHTML = html;
+
+      document.getElementById('mm-new-btn').addEventListener('click', () => renderModelForm());
+      mmBody.querySelectorAll('.mm-delete-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm('このモデルを削除しますか？')) return;
+          try {
+            const resp = await fetch('/models', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: btn.dataset.id }),
+            });
+            if (!resp.ok) throw new Error('Delete failed');
+            loadModels();
+            renderModelList();
+          } catch {
+            alert('削除に失敗しました');
+          }
+        });
+      });
+    }
+
+    function renderModelForm() {
+      mmModalTitle.textContent = 'モデル追加';
+      let providerOptions = MODEL_PROVIDERS.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      mmBody.innerHTML = `
+        <form id="mm-form" style="display:flex;flex-direction:column;gap:10px;">
+          <label style="font-size:13px;font-weight:500;color:var(--foreground)">プロバイダー</label>
+          <select id="mm-provider" style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--background);color:var(--foreground);font-size:13px;">
+            ${providerOptions}
+          </select>
+          <label style="font-size:13px;font-weight:500;color:var(--foreground)">モデル</label>
+          <select id="mm-model-id" style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--background);color:var(--foreground);font-size:13px;">
+          </select>
+          <input id="mm-model-id-custom" type="text" placeholder="または手動入力..." style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--background);color:var(--foreground);font-size:13px;">
+          <label style="font-size:13px;font-weight:500;color:var(--foreground)">表示名</label>
+          <input id="mm-name" type="text" placeholder="例: gpt-4o" style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--background);color:var(--foreground);font-size:13px;">
+          <label style="font-size:13px;font-weight:500;color:var(--foreground)">API キー</label>
+          <input id="mm-api-key" type="password" placeholder="sk-..." style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--background);color:var(--foreground);font-size:13px;">
+          <label style="font-size:13px;font-weight:500;color:var(--foreground)">API Base URL（オプション）</label>
+          <input id="mm-api-base" type="text" placeholder="https://..." style="padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-lg);background:var(--background);color:var(--foreground);font-size:13px;">
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+            <button type="button" id="mm-form-cancel" class="pm-new-btn" style="background:var(--muted);color:var(--foreground);">キャンセル</button>
+            <button type="submit" class="pm-new-btn">追加</button>
+          </div>
+        </form>
+      `;
+
+      const providerSelect = document.getElementById('mm-provider');
+      const modelSelect = document.getElementById('mm-model-id');
+      const customInput = document.getElementById('mm-model-id-custom');
+      const nameInput = document.getElementById('mm-name');
+
+      function updateModelOptions() {
+        const provider = MODEL_PROVIDERS.find(p => p.id === providerSelect.value);
+        modelSelect.innerHTML = (provider ? provider.models : []).map(m => `<option value="${m}">${m}</option>`).join('');
+        if (modelSelect.options.length > 0) {
+          nameInput.value = modelSelect.value;
+          customInput.value = '';
+        }
+      }
+
+      providerSelect.addEventListener('change', updateModelOptions);
+      modelSelect.addEventListener('change', () => {
+        nameInput.value = modelSelect.value;
+        customInput.value = '';
+      });
+      customInput.addEventListener('input', () => {
+        if (customInput.value.trim()) {
+          nameInput.value = customInput.value.trim();
+          modelSelect.value = '';
+        }
+      });
+      updateModelOptions();
+
+      document.getElementById('mm-form-cancel').addEventListener('click', () => renderModelList());
+      document.getElementById('mm-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const modelId = customInput.value.trim() || modelSelect.value;
+        const modelName = nameInput.value.trim() || modelId;
+        const apiKey = document.getElementById('mm-api-key').value.trim();
+        const apiBase = document.getElementById('mm-api-base').value.trim();
+
+        if (!modelId || !apiKey) {
+          alert('モデルと API キーは必須です');
+          return;
+        }
+
+        try {
+          const body = {
+            model_name: modelName,
+            provider: providerSelect.value,
+            model_id: modelId,
+            api_key: apiKey,
+          };
+          if (apiBase) body.api_base = apiBase;
+
+          const resp = await fetch('/models', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          if (!resp.ok) {
+            const err = await resp.text();
+            throw new Error(err);
+          }
+          loadModels();
+          renderModelList();
+        } catch (err) {
+          alert('追加に失敗しました: ' + err.message);
+        }
+      });
+    }
 
     // --- 初期化 ---
     loadHealth();

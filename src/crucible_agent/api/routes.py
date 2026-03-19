@@ -87,15 +87,22 @@ async def health() -> HealthResponse:
     return HealthResponse(status=status, components=components, version=__version__)
 
 
+def _litellm_headers() -> dict[str, str]:
+    """LiteLLM Proxy 向けの共通ヘッダー"""
+    return {
+        "Authorization": f"Bearer {settings.litellm_api_key}",
+        "Content-Type": "application/json",
+    }
+
+
 @router.get("/models")
-async def models() -> dict:
+async def models_list() -> dict:
     """LiteLLM に登録されたモデル一覧を返す"""
     try:
-        headers = {"Authorization": f"Bearer {settings.litellm_api_key}"}
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(
                 f"{settings.litellm_api_base}/model/info",
-                headers=headers,
+                headers=_litellm_headers(),
             )
             resp.raise_for_status()
             data = resp.json()
@@ -105,25 +112,113 @@ async def models() -> dict:
             model_name = m.get("model_name", "")
             model_info = m.get("model_info", {})
             litellm_params = m.get("litellm_params", {})
+            raw_model = litellm_params.get("model", "")
             model_list.append({
-                "id": model_name,
+                "id": model_info.get("id", model_name),
                 "name": model_name,
-                "provider": litellm_params.get("model", "").split("/")[0] if "/" in litellm_params.get("model", "") else "unknown",
-                "model_id": litellm_params.get("model", ""),
-                "supports_function_calling": litellm_params.get("supports_function_calling", False),
+                "provider": raw_model.split("/")[0] if "/" in raw_model else "unknown",
+                "model_id": raw_model,
+                "supports_function_calling": litellm_params.get(
+                    "supports_function_calling", False,
+                ),
+                "db_model": model_info.get("db_model", False),
             })
 
-        return {
-            "models": model_list,
-            "default": settings.llm_model,
-        }
+        return {"models": model_list, "default": settings.llm_model}
     except Exception:
         logger.warning("Failed to fetch models from LiteLLM", exc_info=True)
-        # フォールバック: デフォルトモデルのみ返す
         return {
-            "models": [{"id": settings.llm_model, "name": settings.llm_model, "provider": "unknown", "model_id": "", "supports_function_calling": True}],
+            "models": [
+                {
+                    "id": settings.llm_model,
+                    "name": settings.llm_model,
+                    "provider": "unknown",
+                    "model_id": "",
+                    "supports_function_calling": True,
+                    "db_model": False,
+                },
+            ],
             "default": settings.llm_model,
         }
+
+
+# プロバイダーごとの model プレフィックス
+_PROVIDER_PREFIX: dict[str, str] = {
+    "openai": "",
+    "anthropic": "anthropic/",
+    "gemini": "gemini/",
+    "groq": "groq/",
+    "ollama": "ollama/",
+    "azure": "azure/",
+    "bedrock": "bedrock/",
+}
+
+
+class _ModelCreateRequest(BaseModel):
+    """POST /models リクエスト"""
+
+    model_name: str
+    provider: str
+    model_id: str
+    api_key: str
+    api_base: str | None = None
+
+
+@router.post("/models", status_code=201)
+async def models_create(req: _ModelCreateRequest) -> dict:
+    """LiteLLM にモデルを動的に追加する"""
+    prefix = _PROVIDER_PREFIX.get(req.provider, f"{req.provider}/")
+    litellm_model = f"{prefix}{req.model_id}" if prefix else req.model_id
+
+    payload: dict = {
+        "model_name": req.model_name,
+        "litellm_params": {
+            "model": litellm_model,
+            "api_key": req.api_key,
+        },
+    }
+    if req.api_base:
+        payload["litellm_params"]["api_base"] = req.api_base
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                f"{settings.litellm_api_base}/model/new",
+                headers=_litellm_headers(),
+                json=payload,
+            )
+            resp.raise_for_status()
+            return resp.json()
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=e.response.status_code,
+            detail=e.response.text,
+        )
+
+
+class _ModelDeleteRequest(BaseModel):
+    """DELETE /models リクエスト"""
+
+    id: str
+
+
+@router.delete("/models", status_code=200)
+async def models_delete(req: _ModelDeleteRequest) -> dict:
+    """LiteLLM からモデルを削除する"""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                f"{settings.litellm_api_base}/model/delete",
+                headers=_litellm_headers(),
+                json={"id": req.id},
+            )
+            resp.raise_for_status()
+            return resp.json()
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=e.response.status_code,
+            detail=e.response.text,
+        )
 
 
 @router.get("/tools", response_model=ToolsResponse)
