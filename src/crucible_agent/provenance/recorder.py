@@ -164,6 +164,25 @@ async def record_agent_run(
         }
 
 
+async def record_revision(
+    new_entity_id: str,
+    original_entity_id: str,
+) -> None:
+    """編集による wasRevisionOf 関係を記録する"""
+    async with _session_factory() as db:
+        db.add(ProvenanceDerivation(
+            derived_entity_id=new_entity_id,
+            source_entity_id=original_entity_id,
+            relation_type="wasRevisionOf",
+        ))
+        await db.commit()
+        logger.info(
+            "Revision recorded: %s wasRevisionOf %s",
+            new_entity_id,
+            original_entity_id,
+        )
+
+
 async def list_sessions() -> list[dict]:
     """全セッション一覧を取得する（最新順）"""
     from sqlalchemy import func, select
@@ -251,8 +270,38 @@ async def get_session_history(session_id: str) -> list[dict]:
             for u in usage_result.scalars().all():
                 user_entity_map[u.activity_id] = u.entity_id
 
-        return [
-            {
+        # wasRevisionOf 関係を取得（編集履歴）
+        all_user_entity_ids = list(user_entity_map.values())
+        all_response_entity_ids = list(response_entity_map.values())
+        all_entity_ids = all_user_entity_ids + all_response_entity_ids
+
+        # revision_of: {new_entity_id: original_entity_id}
+        revision_of: dict[str, str] = {}
+        # revisions_for: {original_entity_id: [new_entity_id, ...]}
+        revisions_for: dict[str, list[str]] = {}
+
+        if all_entity_ids:
+            from sqlalchemy import or_
+
+            derivation_result = await db.execute(
+                select(ProvenanceDerivation)
+                .where(ProvenanceDerivation.relation_type == "wasRevisionOf")
+                .where(or_(
+                    ProvenanceDerivation.derived_entity_id.in_(all_entity_ids),
+                    ProvenanceDerivation.source_entity_id.in_(all_entity_ids),
+                ))
+            )
+            for d in derivation_result.scalars().all():
+                revision_of[d.derived_entity_id] = d.source_entity_id
+                revisions_for.setdefault(d.source_entity_id, []).append(
+                    d.derived_entity_id
+                )
+
+        items = []
+        for a in activities:
+            user_eid = user_entity_map.get(a.id)
+            resp_eid = response_entity_map.get(a.id)
+            item = {
                 "id": a.id,
                 "type": a.type,
                 "tool_name": a.tool_name,
@@ -260,11 +309,18 @@ async def get_session_history(session_id: str) -> list[dict]:
                 "output": a.output_data,
                 "duration_ms": a.duration_ms,
                 "started_at": a.started_at.isoformat() if a.started_at else None,
-                "user_entity_id": user_entity_map.get(a.id),
-                "response_entity_id": response_entity_map.get(a.id),
+                "user_entity_id": user_eid,
+                "response_entity_id": resp_eid,
             }
-            for a in activities
-        ]
+            # 編集元の entity_id（この message が誰かの編集結果である場合）
+            if user_eid and user_eid in revision_of:
+                item["revision_of"] = revision_of[user_eid]
+            # このメッセージを編集した新しい entity_id のリスト
+            if user_eid and user_eid in revisions_for:
+                item["revised_by"] = revisions_for[user_eid]
+            items.append(item)
+
+        return items
 
 
 async def get_provenance_graph(session_id: str) -> dict:

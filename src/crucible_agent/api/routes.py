@@ -48,6 +48,7 @@ from crucible_agent.provenance.recorder import (
     list_sessions,
     record_agent_run,
     record_branch_run,
+    record_revision,
 )
 
 logger = logging.getLogger(__name__)
@@ -453,11 +454,19 @@ async def agent_ws(websocket: WebSocket, session_id: str | None = None) -> None:
                         tool_calls=collected_tools,
                         context_ids=context_ids or None,
                     )
+                    # 編集モードの場合、wasRevisionOf を記録
+                    if edit_from_entity_id:
+                        await record_revision(
+                            new_entity_id=ws_run_result["user_entity_id"],
+                            original_entity_id=edit_from_entity_id,
+                        )
+
                     # フロントエンドが entity_id を DOM に保存できるよう通知
                     await websocket.send_json({
                         "type": "entity_recorded",
                         "user_entity_id": ws_run_result["user_entity_id"],
                         "response_entity_id": ws_run_result["response_entity_id"],
+                        "edit_from_entity_id": edit_from_entity_id,
                         "session_id": session_id,
                     })
                 except Exception:

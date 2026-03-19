@@ -399,6 +399,34 @@
       transition-delay: 0.2s;
     }
 
+    /* ===== 編集バージョン切替（ページネーション） ===== */
+    .revision-nav {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-top: 2px;
+      font-size: 12px;
+      color: var(--muted-foreground);
+    }
+    .revision-nav button {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-full);
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--muted-foreground);
+      padding: 0;
+      font-size: 13px;
+      line-height: 1;
+    }
+    .revision-nav button:hover { background: var(--muted); color: var(--foreground); }
+    .revision-nav button:disabled { opacity: 0.3; cursor: default; }
+    .revision-nav .revision-label { min-width: 30px; text-align: center; }
+
     /* ===== 引用カードエリア ===== */
     #citation-area {
       display: none;
@@ -1429,7 +1457,7 @@
     const ICON = {
       quoteNew: `<svg ${SVG_ATTRS}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" x2="15" y1="10" y2="10"/><line x1="12" x2="12" y1="7" y2="13"/></svg>`,
       copy:     `<svg ${SVG_ATTRS}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`,
-      branch:   `<svg ${SVG_ATTRS}><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>`,
+      pencil:   `<svg ${SVG_ATTRS}><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg>`,
     };
 
     // ===== 引用・分岐 状態管理 =====
@@ -1542,20 +1570,154 @@
 
     async function loadSessionMessages(sid) {
       const items = await fetch(`/provenance/${sid}`).then(r => r.json());
+
+      // 編集グループの構築: original_entity_id → [item, ...]（時系列順）
+      // revision_of があるアイテムは、元メッセージのグループに属する
+      const entityToItem = {};        // user_entity_id → item
+      const revisionGroups = {};      // original_entity_id → [item, item, ...]
+      const isRevision = new Set();   // revision のアイテム id
+
       for (const item of items) {
-        if (item.type === 'agent_run') {
-          if (item.input?.message) {
-            const userEl = addMsg(item.input.message, 'user');
-            if (item.user_entity_id) userEl._wrapper.dataset.entityId = item.user_entity_id;
-          }
-          if (item.output?.response) {
-            const agentEl = addMsg('', 'agent');
-            agentEl._rawText = item.output.response;
-            agentEl.innerHTML = renderMarkdown(item.output.response);
-            if (item.response_entity_id) agentEl._wrapper.dataset.entityId = item.response_entity_id;
-          }
+        if (item.type !== 'agent_run') continue;
+        if (item.user_entity_id) entityToItem[item.user_entity_id] = item;
+      }
+
+      // revision_of チェーンを辿って、最も古いオリジナルを見つける
+      function findRoot(entityId) {
+        const item = entityToItem[entityId];
+        if (!item) return entityId;
+        if (item.revision_of && entityToItem[item.revision_of]) {
+          return findRoot(item.revision_of);
+        }
+        return entityId;
+      }
+
+      for (const item of items) {
+        if (item.type !== 'agent_run' || !item.user_entity_id) continue;
+        if (item.revision_of) {
+          const rootId = findRoot(item.user_entity_id);
+          if (!revisionGroups[rootId]) revisionGroups[rootId] = [entityToItem[rootId]];
+          revisionGroups[rootId].push(item);
+          isRevision.add(item.id);
         }
       }
+
+      // レンダリング：revision でないアイテムだけ表示し、グループがあればページネーション付き
+      for (const item of items) {
+        if (item.type !== 'agent_run') continue;
+        if (isRevision.has(item.id)) continue;
+
+        const group = revisionGroups[item.user_entity_id];
+        if (group && group.length > 1) {
+          // 編集グループ — ページネーション付きで最新版を表示
+          renderRevisionGroup(group);
+        } else {
+          // 通常メッセージ
+          renderSingleItem(item);
+        }
+      }
+    }
+
+    function renderSingleItem(item) {
+      if (item.input?.message) {
+        const userEl = addMsg(item.input.message, 'user');
+        if (item.user_entity_id) userEl._wrapper.dataset.entityId = item.user_entity_id;
+      }
+      if (item.output?.response) {
+        const agentEl = addMsg('', 'agent');
+        agentEl._rawText = item.output.response;
+        agentEl.innerHTML = renderMarkdown(item.output.response);
+        if (item.response_entity_id) agentEl._wrapper.dataset.entityId = item.response_entity_id;
+      }
+    }
+
+    function renderRevisionGroup(group) {
+      // group[0] = original, group[1..] = 編集版（時系列順）
+      // 最新版（最後）をデフォルト表示
+      const currentIdx = group.length - 1;
+
+      // コンテナ要素
+      const container = document.createElement('div');
+      container.className = 'revision-group';
+
+      // 各バージョンの DOM を生成（非表示で）
+      const versions = group.map((item, idx) => {
+        const frag = document.createDocumentFragment();
+
+        let userWrapper = null;
+        if (item.input?.message) {
+          const userEl = addMsg(item.input.message, 'user');
+          if (item.user_entity_id) userEl._wrapper.dataset.entityId = item.user_entity_id;
+          userWrapper = userEl._wrapper;
+          frag.appendChild(userEl._wrapper);
+        }
+        let agentWrapper = null;
+        if (item.output?.response) {
+          const agentEl = addMsg('', 'agent');
+          agentEl._rawText = item.output.response;
+          agentEl.innerHTML = renderMarkdown(item.output.response);
+          if (item.response_entity_id) agentEl._wrapper.dataset.entityId = item.response_entity_id;
+          agentWrapper = agentEl._wrapper;
+          frag.appendChild(agentEl._wrapper);
+        }
+
+        // frag の子を container に移動
+        const wrappers = [];
+        while (frag.firstChild) {
+          const w = frag.firstChild;
+          w.style.display = idx === currentIdx ? '' : 'none';
+          container.appendChild(w);
+          wrappers.push(w);
+        }
+
+        return { item, wrappers, userWrapper, agentWrapper };
+      });
+
+      // ページネーション UI
+      const nav = document.createElement('div');
+      nav.className = 'revision-nav';
+      const prevBtn = document.createElement('button');
+      prevBtn.textContent = '‹';
+      const nextBtn = document.createElement('button');
+      nextBtn.textContent = '›';
+      const label = document.createElement('span');
+      label.className = 'revision-label';
+
+      let activeIdx = currentIdx;
+
+      function updateNav() {
+        label.textContent = `${activeIdx + 1} / ${group.length}`;
+        prevBtn.disabled = activeIdx === 0;
+        nextBtn.disabled = activeIdx === group.length - 1;
+      }
+
+      function showVersion(idx) {
+        versions.forEach((v, i) => {
+          v.wrappers.forEach(w => { w.style.display = i === idx ? '' : 'none'; });
+        });
+        activeIdx = idx;
+        updateNav();
+      }
+
+      prevBtn.addEventListener('click', () => { if (activeIdx > 0) showVersion(activeIdx - 1); });
+      nextBtn.addEventListener('click', () => { if (activeIdx < group.length - 1) showVersion(activeIdx + 1); });
+
+      nav.appendChild(prevBtn);
+      nav.appendChild(label);
+      nav.appendChild(nextBtn);
+      updateNav();
+
+      // container 内でユーザーメッセージ wrapper の後にナビを挿入
+      // 最初のユーザー wrapper の後に配置
+      const firstUserWrapper = versions[currentIdx].wrappers[0];
+      if (firstUserWrapper) {
+        container.insertBefore(nav, firstUserWrapper.nextSibling);
+      } else {
+        container.prepend(nav);
+      }
+
+      messagesEl.appendChild(container);
+      scrollToBottom();
     }
 
     function newSession() {
@@ -1711,6 +1873,10 @@
           if (data.response_entity_id && lastAgentWrapper) {
             lastAgentWrapper.dataset.entityId = data.response_entity_id;
           }
+          // リアルタイム編集時: 編集元の wrapper を探してページネーションを追加/更新
+          if (data.edit_from_entity_id && data.user_entity_id && lastUserWrapper) {
+            attachRevisionNav(data.edit_from_entity_id, data.user_entity_id, lastUserWrapper, lastAgentWrapper);
+          }
           break;
         case 'approval_request':
           addApprovalMsg(data.tool_call_id, data.tool_name, data.input, data.content);
@@ -1802,7 +1968,7 @@
           actions.innerHTML =
             `<button class="msg-action-btn" data-action="quote" data-tooltip="新規セッションに引用">${ICON.quoteNew}</button>` +
             `<button class="msg-action-btn" data-action="copy" data-tooltip="別セッションにコピー">${ICON.copy}</button>` +
-            `<button class="msg-action-btn" data-action="branch" data-tooltip="ここから別の聞き方で分岐">${ICON.branch}</button>`;
+            `<button class="msg-action-btn" data-action="branch" data-tooltip="編集">${ICON.pencil}</button>`;
         } else {
           actions.innerHTML =
             `<button class="msg-action-btn" data-action="quote" data-tooltip="新規セッションに引用">${ICON.quoteNew}</button>` +
@@ -2265,6 +2431,82 @@
       pasteBannerEl.classList.remove('visible');
     });
 
+    // --- リアルタイム編集ページネーション ---
+    // 編集チェーン: originalEntityId → [{userWrapper, agentWrapper, entityId}, ...]
+    const revisionChains = {};
+
+    function attachRevisionNav(originalEntityId, newEntityId, newUserWrapper, newAgentWrapper) {
+      // 元のメッセージの wrapper を DOM から探す
+      const origUserWrapper = messagesEl.querySelector(
+        `.msg-wrapper[data-entity-id="${CSS.escape(originalEntityId)}"]`
+      );
+
+      // チェーンを初期化（元メッセージを含む）
+      if (!revisionChains[originalEntityId]) {
+        const origAgentWrapper = origUserWrapper ? origUserWrapper.nextElementSibling : null;
+        revisionChains[originalEntityId] = [{
+          entityId: originalEntityId,
+          userWrapper: origUserWrapper,
+          agentWrapper: (origAgentWrapper && origAgentWrapper.classList.contains('msg-wrapper-agent')) ? origAgentWrapper : null,
+        }];
+      }
+
+      // 新しい版をチェーンに追加
+      const chain = revisionChains[originalEntityId];
+      chain.push({
+        entityId: newEntityId,
+        userWrapper: newUserWrapper,
+        agentWrapper: newAgentWrapper,
+      });
+
+      // 既存のナビを削除（再描画）
+      const existingNav = messagesEl.querySelector(`.revision-nav[data-chain="${CSS.escape(originalEntityId)}"]`);
+      if (existingNav) existingNav.remove();
+
+      // ページネーション UI を作成
+      let activeIdx = chain.length - 1;
+
+      const nav = document.createElement('div');
+      nav.className = 'revision-nav';
+      nav.dataset.chain = originalEntityId;
+
+      const prevBtn = document.createElement('button');
+      prevBtn.textContent = '‹';
+      const nextBtn = document.createElement('button');
+      nextBtn.textContent = '›';
+      const label = document.createElement('span');
+      label.className = 'revision-label';
+
+      function updateNav() {
+        label.textContent = `${activeIdx + 1} / ${chain.length}`;
+        prevBtn.disabled = activeIdx === 0;
+        nextBtn.disabled = activeIdx === chain.length - 1;
+      }
+
+      function showVersion(idx) {
+        chain.forEach((v, i) => {
+          if (v.userWrapper) v.userWrapper.style.display = i === idx ? '' : 'none';
+          if (v.agentWrapper) v.agentWrapper.style.display = i === idx ? '' : 'none';
+        });
+        activeIdx = idx;
+        updateNav();
+      }
+
+      prevBtn.addEventListener('click', () => { if (activeIdx > 0) showVersion(activeIdx - 1); });
+      nextBtn.addEventListener('click', () => { if (activeIdx < chain.length - 1) showVersion(activeIdx + 1); });
+
+      nav.appendChild(prevBtn);
+      nav.appendChild(label);
+      nav.appendChild(nextBtn);
+      updateNav();
+
+      // 最新版のユーザー wrapper の後にナビを挿入
+      const latestUserWrapper = chain[activeIdx].userWrapper;
+      if (latestUserWrapper && latestUserWrapper.parentNode) {
+        latestUserWrapper.parentNode.insertBefore(nav, latestUserWrapper.nextSibling);
+      }
+    }
+
     // --- 編集モーダル ---
     let branchOriginalText = '';
 
@@ -2298,16 +2540,21 @@
         return;
       }
 
-      // 編集元メッセージ以降の UI をクリア
+      // 編集元メッセージ以降の UI を非表示にする（ページネーションで戻れるよう保持）
       const editWrapper = messagesEl.querySelector(
         `.msg-wrapper[data-entity-id="${CSS.escape(branchEntityId)}"]`
       );
       if (editWrapper) {
-        // 編集元自身も含め、それ以降を全て削除
-        while (editWrapper.nextSibling) {
-          editWrapper.nextSibling.remove();
+        // 編集元自身と、それ以降の wrapper + revision-nav を非表示
+        let sibling = editWrapper.nextSibling;
+        while (sibling) {
+          const next = sibling.nextSibling;
+          if (sibling.classList && (sibling.classList.contains('msg-wrapper') || sibling.classList.contains('revision-nav'))) {
+            sibling.style.display = 'none';
+          }
+          sibling = next;
         }
-        editWrapper.remove();
+        editWrapper.style.display = 'none';
       }
 
       closeBranchModal();
