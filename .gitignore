@@ -21,6 +21,9 @@ mcp_agent.secrets.yaml
 # プロンプトプロファイルテンプレート（DB管理に移行済み。リポジトリには含めない）
 src/crucible_agent/prompts/templates/
 
+# 内部設計ドキュメント（非公開）
+docs/internal/
+
 # IDE
 .vscode/
 .idea/
