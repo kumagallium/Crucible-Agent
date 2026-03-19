@@ -99,11 +99,11 @@ async def record_agent_run(
         ))
 
         # prov:used — 前ターンの agent_response をコンテキストとして使った
-        # リレーションベース: 直前の Activity の出力（wasGeneratedBy）を辿る
+        # リレーションベース: Activity チェーンを辿る
         prev_resp_entity = None
         if edit_from_entity_id:
-            # 編集時: edit_from_entity_id を入力として使った Activity を探し、
-            # その Activity の出力（response）を context とする
+            # 編集時: 編集元の Activity が使っていた context と同じものを使う
+            # （テスト2を編集 → テスト2が使っていたテスト1の回答を context に）
             usage_result = await db.execute(
                 select(ProvenanceUsage)
                 .where(ProvenanceUsage.entity_id == edit_from_entity_id)
@@ -112,14 +112,18 @@ async def record_agent_run(
             )
             prev_usage = usage_result.scalar_one_or_none()
             if prev_usage:
-                # その Activity が生成した response を取得
-                resp_result = await db.execute(
-                    select(ProvenanceEntity)
-                    .where(ProvenanceEntity.generated_by == prev_usage.activity_id)
-                    .where(ProvenanceEntity.type == "agent_response")
+                # 編集元 Activity が使っていた context を取得
+                ctx_result = await db.execute(
+                    select(ProvenanceUsage)
+                    .where(ProvenanceUsage.activity_id == prev_usage.activity_id)
+                    .where(ProvenanceUsage.role == "context")
                     .limit(1)
                 )
-                prev_resp_entity = resp_result.scalar_one_or_none()
+                prev_ctx = ctx_result.scalar_one_or_none()
+                if prev_ctx:
+                    prev_resp_entity = await db.get(
+                        ProvenanceEntity, prev_ctx.entity_id
+                    )
         else:
             # 通常: このセッションの直前の Activity の出力を取得
             prev_act_result = await db.execute(
