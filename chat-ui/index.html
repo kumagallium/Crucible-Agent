@@ -3160,6 +3160,10 @@
             const sourceId = e.target;   // 引用元（クロスセッション）
             const derivedId = e.source;  // 影響を受けた Entity（このセッション）
 
+            // このセッションの Entity が参照した場合のみ処理
+            if (!sessionEntityIds.has(derivedId)) continue;
+            // 引用元がこのセッション内ならクロスセッション位置計算不要
+            if (sessionEntityIds.has(sourceId)) continue;
             if (!crossSessionPos[sourceId]) {
               // 引用元にまだ列が割り当てられていなければ新規列
               if (!crossColMap[sourceId]) {
