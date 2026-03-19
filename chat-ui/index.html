@@ -6,6 +6,7 @@
   <title>Crucible Agent</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
   <style>
     :root {
       /* Crucible Design System */
@@ -146,6 +147,7 @@
       flex-direction: column;
       min-width: 0;
       background: var(--background);
+      position: relative;
     }
 
     header {
@@ -432,6 +434,64 @@
     .rev-nav button:hover { color: var(--foreground); background: var(--muted); }
     .rev-nav button:disabled { opacity: 0.3; cursor: default; background: none; }
     .rev-nav .rev-label { font-size: 11px; min-width: 28px; text-align: center; color: var(--muted-foreground); }
+
+    /* ===== 来歴グラフパネル ===== */
+    #graph-panel {
+      display: none;
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--background);
+      z-index: 200;
+      flex-direction: column;
+    }
+    #graph-panel.open { display: flex; }
+    #graph-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--card);
+    }
+    #graph-header h3 { margin: 0; font-size: 14px; font-weight: 600; }
+    #graph-close-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      padding: 4px 12px;
+      font-size: 12px;
+      color: var(--muted-foreground);
+    }
+    #graph-close-btn:hover { background: var(--muted); color: var(--foreground); }
+    #graph-container { flex: 1; }
+    #graph-legend {
+      display: flex;
+      gap: 16px;
+      padding: 8px 20px;
+      border-top: 1px solid var(--border);
+      background: var(--card);
+      font-size: 11px;
+      color: var(--muted-foreground);
+    }
+    .legend-item { display: flex; align-items: center; gap: 4px; }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,0,0,0.15);
+    }
+    #graph-toggle-btn {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      padding: 4px 10px;
+      font-size: 12px;
+      color: var(--muted-foreground);
+      margin-left: 8px;
+    }
+    #graph-toggle-btn:hover { background: var(--muted); color: var(--foreground); }
 
     /* ===== 引用カードエリア ===== */
     #citation-area {
@@ -1335,8 +1395,28 @@
     <header>
       <span id="status" class="conn-status disconnected">切断</span>
       <span id="session-display" class="session-id"></span>
+      <button id="graph-toggle-btn" title="来歴グラフ">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><line x1="6" x2="18" y1="9" y2="15"/><line x1="18" x2="6" y1="9" y2="15"/></svg>
+        来歴
+      </button>
       <span class="spacer"></span>
     </header>
+
+    <!-- 来歴グラフパネル -->
+    <div id="graph-panel">
+      <div id="graph-header">
+        <h3>来歴グラフ（PROV-DM）</h3>
+        <button id="graph-close-btn">閉じる</button>
+      </div>
+      <div id="graph-container"></div>
+      <div id="graph-legend">
+        <span class="legend-item"><span class="legend-dot" style="background:#4B7A52"></span> ユーザー入力</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#e8f0e8"></span> AI 応答</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#dbeafe"></span> ツール結果</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#fef3c7"></span> Activity</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#f3e8ff"></span> Agent</span>
+      </div>
+    </div>
 
     <div id="messages"></div>
 
@@ -1457,6 +1537,7 @@
     let firstUserMessage = null; // 現セッションの最初のユーザーメッセージ（タイトル生成用）
     let manualDisconnect = false; // セッション切り替え時の自動再接続を抑制
     let suppressConnectMsg = false; // 過去セッション復元時の接続メッセージを抑制
+    let initialLoad = true; // 初回ロード時のチャット履歴復元フラグ
 
     // ===== Lucide SVG アイコン（インライン） =====
     const SVG_ATTRS = 'xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"';
@@ -1817,6 +1898,11 @@
           addSystemMsg('エージェントに接続しました');
         }
         suppressConnectMsg = false;
+        // 初回ロード時に現セッションのチャット履歴を復元
+        if (initialLoad) {
+          initialLoad = false;
+          loadSessionMessages(wsSessionId).catch(() => {});
+        }
         loadSessionList();
       };
 
@@ -2578,6 +2664,170 @@
       planToggleBtn.classList.toggle('on', planMode);
       planToggleBtn.title = planMode ? 'ON' : 'OFF';
     });
+
+    // --- 来歴グラフ ---
+    const graphPanel = document.getElementById('graph-panel');
+    const graphContainer = document.getElementById('graph-container');
+    const graphToggleBtn = document.getElementById('graph-toggle-btn');
+    const graphCloseBtn = document.getElementById('graph-close-btn');
+    let cyInstance = null;
+
+    const PROV_COLORS = {
+      user_message:   { bg: '#4B7A52', fg: '#fff' },
+      agent_response: { bg: '#e8f0e8', fg: '#1a2e1d' },
+      tool_result:    { bg: '#dbeafe', fg: '#1e3a5f' },
+      activity:       { bg: '#fef3c7', fg: '#78350f' },
+      agent:          { bg: '#f3e8ff', fg: '#581c87' },
+    };
+
+    function provColor(node) {
+      if (node.node_type === 'activity') return PROV_COLORS.activity;
+      if (node.node_type === 'agent') return PROV_COLORS.agent;
+      return PROV_COLORS[node.prov_type] || PROV_COLORS.agent_response;
+    }
+
+    function provLabel(node) {
+      if (node.node_type === 'entity') {
+        const content = node.content || '';
+        if (content.length > 40) return content.slice(0, 37) + '...';
+        return content || node.prov_type;
+      }
+      if (node.node_type === 'agent') return node.label || 'Agent';
+      return node.prov_type || 'activity';
+    }
+
+    function provShape(node) {
+      if (node.node_type === 'activity') return 'diamond';
+      if (node.node_type === 'agent') return 'ellipse';
+      return 'round-rectangle';
+    }
+
+    async function showGraph() {
+      if (!wsSessionId) return;
+      graphPanel.classList.add('open');
+
+      try {
+        const resp = await fetch(`/provenance/${wsSessionId}/graph`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+
+        const elements = [];
+
+        for (const n of data.nodes) {
+          const c = provColor(n);
+          elements.push({
+            data: {
+              id: n.id,
+              label: provLabel(n),
+              bgColor: c.bg,
+              fgColor: c.fg,
+              shape: provShape(n),
+              nodeType: n.node_type,
+            },
+          });
+        }
+
+        for (const e of data.edges) {
+          elements.push({
+            data: {
+              id: e.source + '-' + e.target + '-' + e.relation,
+              source: e.source,
+              target: e.target,
+              label: e.relation,
+            },
+          });
+        }
+
+        if (cyInstance) cyInstance.destroy();
+
+        cyInstance = cytoscape({
+          container: graphContainer,
+          elements,
+          style: [
+            {
+              selector: 'node',
+              style: {
+                'label': 'data(label)',
+                'background-color': 'data(bgColor)',
+                'color': 'data(fgColor)',
+                'text-valign': 'center',
+                'text-halign': 'center',
+                'font-size': '10px',
+                'font-family': 'Inter, sans-serif',
+                'text-wrap': 'wrap',
+                'text-max-width': '100px',
+                'width': 'label',
+                'height': 'label',
+                'padding': '10px',
+                'shape': 'data(shape)',
+                'border-width': 1,
+                'border-color': '#d5e0d7',
+                'text-outline-width': 0,
+              },
+            },
+            {
+              selector: 'node[nodeType = "activity"]',
+              style: {
+                'width': 30,
+                'height': 30,
+                'font-size': '8px',
+                'padding': '4px',
+              },
+            },
+            {
+              selector: 'node[nodeType = "agent"]',
+              style: {
+                'width': 30,
+                'height': 30,
+                'font-size': '8px',
+                'padding': '4px',
+              },
+            },
+            {
+              selector: 'edge',
+              style: {
+                'label': 'data(label)',
+                'font-size': '8px',
+                'font-family': 'Inter, sans-serif',
+                'color': '#6b7f6e',
+                'text-rotation': 'autorotate',
+                'text-margin-y': -8,
+                'curve-style': 'bezier',
+                'target-arrow-shape': 'triangle',
+                'target-arrow-color': '#b8d4bb',
+                'line-color': '#b8d4bb',
+                'width': 1.5,
+                'arrow-scale': 0.8,
+              },
+            },
+          ],
+          layout: {
+            name: 'breadthfirst',
+            directed: true,
+            spacingFactor: 1.5,
+            avoidOverlap: true,
+            padding: 30,
+          },
+          userZoomingEnabled: true,
+          userPanningEnabled: true,
+          boxSelectionEnabled: false,
+        });
+
+        cyInstance.fit(undefined, 40);
+      } catch (err) {
+        graphContainer.innerHTML = `<div style="padding:20px;color:var(--muted-foreground)">グラフの読み込みに失敗しました: ${err.message}</div>`;
+      }
+    }
+
+    function hideGraph() {
+      graphPanel.classList.remove('open');
+    }
+
+    graphToggleBtn.addEventListener('click', () => {
+      if (graphPanel.classList.contains('open')) hideGraph();
+      else showGraph();
+    });
+    graphCloseBtn.addEventListener('click', hideGraph);
 
     // --- 初期化 ---
     loadHealth();
