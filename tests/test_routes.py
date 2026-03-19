@@ -262,7 +262,11 @@ class TestAgentRunEndpoint:
             "tool_calls": [],
             "token_usage": {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
         }
-        mock_record.return_value = "prov-abc"
+        mock_record.return_value = {
+            "activity_id": "prov-abc",
+            "user_entity_id": "user-ent-abc",
+            "response_entity_id": "resp-ent-abc",
+        }
 
         resp = client.post("/agent/run", json={"message": "Hello"})
         assert resp.status_code == 200
@@ -309,7 +313,11 @@ class TestAgentRunEndpoint:
             "tool_calls": [],
             "token_usage": {},
         }
-        mock_record.return_value = None
+        mock_record.return_value = {
+            "activity_id": None,
+            "user_entity_id": None,
+            "response_entity_id": None,
+        }
 
         resp = client.post(
             "/agent/run",

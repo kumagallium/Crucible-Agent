@@ -41,7 +41,7 @@ async def record_agent_run(
     llm_model_id: str | None = None,
     llm_model_version: str | None = None,
     context_ids: list[str] | None = None,
-) -> str:
+) -> dict:
     """エージェント実行の来歴を記録する
 
     Args:
@@ -51,7 +51,7 @@ async def record_agent_run(
         context_ids: 手動引用した過去 Entity の ID リスト（wasInfluencedBy を記録）
 
     Returns:
-        provenance_id: 記録した Activity の ID
+        dict with "activity_id" and "response_entity_id"
     """
     async with _session_factory() as db:
         # Agent: LLM 実行者（provider/model_id を記録）
@@ -157,7 +157,11 @@ async def record_agent_run(
 
         await db.commit()
         logger.info("Provenance recorded (session=%s, activity=%s)", session_id, activity.id)
-        return activity.id
+        return {
+            "activity_id": activity.id,
+            "user_entity_id": user_entity.id,
+            "response_entity_id": response_entity.id,
+        }
 
 
 async def list_sessions() -> list[dict]:
@@ -212,7 +216,7 @@ async def get_conversation_history(session_id: str) -> list[dict]:
 
 
 async def get_session_history(session_id: str) -> list[dict]:
-    """セッションの来歴を取得する"""
+    """セッションの来歴を取得する（entity_id を含む）"""
     from sqlalchemy import select
 
     async with _session_factory() as db:
@@ -222,6 +226,31 @@ async def get_session_history(session_id: str) -> list[dict]:
             .order_by(ProvenanceActivity.started_at)
         )
         activities = result.scalars().all()
+        activity_ids = [a.id for a in activities]
+
+        # agent_response entity: generated_by → entity_id のマップ
+        response_entity_map: dict[str, str] = {}
+        # user_message entity: activity_id → entity_id のマップ（prov_usage 経由）
+        user_entity_map: dict[str, str] = {}
+
+        if activity_ids:
+            entity_result = await db.execute(
+                select(ProvenanceEntity)
+                .where(ProvenanceEntity.session_id == session_id)
+                .where(ProvenanceEntity.type == "agent_response")
+            )
+            for e in entity_result.scalars().all():
+                if e.generated_by:
+                    response_entity_map[e.generated_by] = e.id
+
+            usage_result = await db.execute(
+                select(ProvenanceUsage)
+                .where(ProvenanceUsage.activity_id.in_(activity_ids))
+                .where(ProvenanceUsage.role == "input")
+            )
+            for u in usage_result.scalars().all():
+                user_entity_map[u.activity_id] = u.entity_id
+
         return [
             {
                 "id": a.id,
@@ -231,6 +260,8 @@ async def get_session_history(session_id: str) -> list[dict]:
                 "output": a.output_data,
                 "duration_ms": a.duration_ms,
                 "started_at": a.started_at.isoformat() if a.started_at else None,
+                "user_entity_id": user_entity_map.get(a.id),
+                "response_entity_id": response_entity_map.get(a.id),
             }
             for a in activities
         ]
@@ -442,14 +473,14 @@ async def record_branch_run(
     duration_ms: int = 0,
     llm_provider: str | None = None,
     llm_model_id: str | None = None,
-) -> str:
+) -> dict:
     """ブランチセッションの来歴を記録し、wasDerivedFrom を張る
 
     Returns:
-        provenance_id: 記録した Activity の ID
+        dict with "activity_id" and "response_entity_id"
     """
     # 通常の record_agent_run で記録（新セッション ID で）
-    activity_id = await record_agent_run(
+    run_result = await record_agent_run(
         session_id=branch_session_id,
         user_message=user_message,
         agent_response=agent_response,
@@ -485,4 +516,4 @@ async def record_branch_run(
                 branch_session_id,
             )
 
-    return activity_id
+    return run_result

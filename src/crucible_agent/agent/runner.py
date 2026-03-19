@@ -112,11 +112,14 @@ async def run_agent_stream(
     server_names: list[str] | None = None,
     profile: str | None = None,
     custom_instructions: str | None = None,
+    context_ids: list[str] | None = None,
     require_approval: bool = False,
     approval_callback: ApprovalCallback | None = None,
 ) -> AsyncIterator[StreamEvent]:
     """エージェントを実行し、イベントをストリームする（WebSocket 用）"""
-    instruction = instruction or await build_instruction(profile, custom_instructions)
+    instruction = instruction or await _build_instruction_with_contexts(
+        profile, custom_instructions, context_ids or []
+    )
     server_names, discovered = await _resolve_servers(server_names)
 
     logger.info("Agent stream started (session=%s, plan_mode=%s)", session_id, require_approval)

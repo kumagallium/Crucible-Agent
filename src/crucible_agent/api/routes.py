@@ -188,13 +188,14 @@ async def agent_run(req: AgentRunRequest) -> AgentRunResponse:
     # PROV-DM 来歴記録
     provenance_id = None
     try:
-        provenance_id = await record_agent_run(
+        run_result = await record_agent_run(
             session_id=result["session_id"],
             user_message=req.message,
             agent_response=result["message"],
             tool_calls=result.get("tool_calls", []),
             context_ids=result.get("context_ids") or None,
         )
+        provenance_id = run_result["activity_id"]
     except Exception:
         logger.warning("Provenance recording failed", exc_info=True)
 
@@ -296,7 +297,7 @@ async def session_branch(session_id: str, req: BranchRequest) -> BranchResponse:
     # PROV-DM 記録（wasDerivedFrom を含む）
     provenance_id = None
     try:
-        provenance_id = await record_branch_run(
+        branch_result = await record_branch_run(
             parent_session_id=session_id,
             branch_session_id=branch_session_id,
             branch_from_entity_id=req.branch_from_entity_id,
@@ -304,6 +305,7 @@ async def session_branch(session_id: str, req: BranchRequest) -> BranchResponse:
             agent_response=result["message"],
             tool_calls=result.get("tool_calls", []),
         )
+        provenance_id = branch_result["activity_id"]
     except Exception:
         logger.warning("Branch provenance recording failed", exc_info=True)
 
@@ -394,6 +396,7 @@ async def agent_ws(websocket: WebSocket, session_id: str | None = None) -> None:
                 custom_instructions = msg.get("custom_instructions")
                 server_names = msg.get("server_names")
                 require_approval = msg.get("require_approval", False)
+                context_ids: list[str] = msg.get("context_ids") or []
 
                 # ストリーム中のテキストとツール呼び出しを収集
                 collected_text = ""
@@ -405,6 +408,7 @@ async def agent_ws(websocket: WebSocket, session_id: str | None = None) -> None:
                     profile=profile,
                     custom_instructions=custom_instructions,
                     server_names=server_names,
+                    context_ids=context_ids or None,
                     require_approval=require_approval,
                     approval_callback=approval_callback if require_approval else None,
                 ):
@@ -432,12 +436,20 @@ async def agent_ws(websocket: WebSocket, session_id: str | None = None) -> None:
 
                 # PROV-DM 記録
                 try:
-                    await record_agent_run(
+                    ws_run_result = await record_agent_run(
                         session_id=session_id,
                         user_message=content,
                         agent_response=collected_text,
                         tool_calls=collected_tools,
+                        context_ids=context_ids or None,
                     )
+                    # フロントエンドが entity_id を DOM に保存できるよう通知
+                    await websocket.send_json({
+                        "type": "entity_recorded",
+                        "user_entity_id": ws_run_result["user_entity_id"],
+                        "response_entity_id": ws_run_result["response_entity_id"],
+                        "session_id": session_id,
+                    })
                 except Exception:
                     logger.warning("Provenance recording failed (WS)", exc_info=True)
 
