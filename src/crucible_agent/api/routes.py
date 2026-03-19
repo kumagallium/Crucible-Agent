@@ -41,6 +41,7 @@ from crucible_agent.profiles.repository import (
     update_profile,
 )
 from crucible_agent.provenance.recorder import (
+    delete_session,
     get_conversation_history_until,
     get_entity,
     get_provenance_graph,
@@ -332,6 +333,14 @@ async def provenance_detail(session_id: str) -> list[dict]:
     return await get_session_history(session_id)
 
 
+@router.delete("/provenance/{session_id}", status_code=204)
+async def provenance_delete(session_id: str) -> None:
+    """セッションの来歴データをすべて削除する"""
+    deleted = await delete_session(session_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+
 @router.get("/provenance/{session_id}/graph", response_model=GraphResponse)
 async def provenance_graph(session_id: str) -> GraphResponse:
     """セッションの来歴グラフを返す（フロントエンド可視化用）
@@ -453,6 +462,7 @@ async def agent_ws(websocket: WebSocket, session_id: str | None = None) -> None:
                         agent_response=collected_text,
                         tool_calls=collected_tools,
                         context_ids=context_ids or None,
+                        edit_from_entity_id=edit_from_entity_id,
                     )
                     # 編集モードの場合、wasRevisionOf を記録
                     if edit_from_entity_id:

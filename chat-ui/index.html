@@ -6,6 +6,7 @@
   <title>Crucible Agent</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
   <style>
     :root {
       /* Crucible Design System */
@@ -109,6 +110,9 @@
     }
 
     .session-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
       padding: 8px 10px;
       border-radius: var(--radius-lg);
       cursor: pointer;
@@ -118,6 +122,11 @@
 
     .session-item:hover { background: var(--muted); }
     .session-item.active { background: var(--accent); }
+
+    .session-item .si-content {
+      flex: 1;
+      min-width: 0;
+    }
 
     .session-item .si-title {
       font-size: 13px;
@@ -139,6 +148,65 @@
       margin-top: 1px;
     }
 
+    /* 三点メニューボタン — アイテム全体の上下中央 */
+    .si-menu-wrapper {
+      position: relative;
+      flex-shrink: 0;
+    }
+    .session-item .si-menu-btn {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--muted-fg);
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      line-height: 0;
+      border-radius: var(--radius-full);
+      transition: color 0.15s, background 0.15s;
+    }
+    .session-item .si-menu-btn:hover { color: var(--foreground); background: var(--border); }
+    .session-item:hover .si-menu-btn,
+    .session-item .si-menu-btn.open { display: flex; }
+
+    /* ドロップダウンメニュー */
+    .si-dropdown {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: calc(100% + 4px);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      min-width: 140px;
+      z-index: 300;
+      padding: 4px;
+    }
+    .si-dropdown.show { display: block; }
+    .si-dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 7px 10px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      border-radius: calc(var(--radius-lg) - 2px);
+      color: var(--foreground);
+      font-size: 13px;
+      font-family: inherit;
+      transition: background 0.1s;
+      text-align: left;
+    }
+    .si-dropdown-item:hover { background: var(--muted); }
+    .si-dropdown-item.danger { color: #c53030; }
+    .si-dropdown-item.danger:hover { background: rgba(197,48,48,0.08); }
+
     /* ===== 中: メインエリア ===== */
     #main {
       flex: 1;
@@ -146,6 +214,7 @@
       flex-direction: column;
       min-width: 0;
       background: var(--background);
+      position: relative;
     }
 
     header {
@@ -349,14 +418,19 @@
     .msg-wrapper-agent { align-items: flex-start; }
 
     .msg-actions {
-      display: none;
+      display: flex;
+      visibility: hidden;
       gap: 2px;
       padding: 2px 4px;
       background: var(--card);
-      border: 1px solid var(--border);
+      border: 1px solid transparent;
       border-radius: var(--radius-full);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       margin-top: 3px;
+    }
+    .msg-wrapper[data-entity-id]:hover .msg-actions {
+      visibility: visible;
+      border-color: var(--border);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
 
     .msg-action-btn {
@@ -427,6 +501,71 @@
     .rev-nav button:hover { color: var(--foreground); background: var(--muted); }
     .rev-nav button:disabled { opacity: 0.3; cursor: default; background: none; }
     .rev-nav .rev-label { font-size: 11px; min-width: 28px; text-align: center; color: var(--muted-foreground); }
+
+    /* ===== ヘッダータブ切り替え ===== */
+    .header-tabs {
+      display: flex;
+      gap: 2px;
+      background: var(--muted);
+      border-radius: var(--radius-lg);
+      padding: 2px;
+    }
+    .header-tab {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      font-family: inherit;
+      color: var(--muted-fg);
+      border-radius: calc(var(--radius-lg) - 2px);
+      transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .header-tab:hover { color: var(--foreground); }
+    .header-tab.active {
+      background: var(--card);
+      color: var(--foreground);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    /* ===== 来歴グラフパネル ===== */
+    #graph-panel {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      background: var(--background);
+      overflow: hidden;
+    }
+    #graph-panel.open { display: flex; }
+    /* チャットコンテンツ */
+    #chat-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    #chat-content.hidden { display: none; }
+    #graph-container { flex: 1; }
+    #graph-legend {
+      display: flex;
+      gap: 16px;
+      padding: 8px 20px;
+      border-top: 1px solid var(--border);
+      background: var(--card);
+      font-size: 11px;
+      color: var(--muted-foreground);
+    }
+    .legend-item { display: flex; align-items: center; gap: 4px; }
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,0,0,0.15);
+    }
 
     /* ===== 引用カードエリア ===== */
     #citation-area {
@@ -963,12 +1102,67 @@
 
     .btn-reject:hover { background: var(--error-bg); }
 
-    /* レスポンシブ */
-    @media (max-width: 900px) {
-      #history-sidebar { display: none; }
+    /* ハンバーガーメニューボタン（モバイルのみ表示） */
+    #sidebar-toggle {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--foreground);
+      padding: 4px;
+      line-height: 0;
+      border-radius: var(--radius-lg);
+      transition: background 0.15s;
     }
+    #sidebar-toggle:hover { background: var(--muted); }
+
+    /* サイドバーオーバーレイ背景（モバイルのみ） */
+    #sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 399;
+    }
+    #sidebar-overlay.visible { display: block; }
+
+    /* レスポンシブ */
     @media (max-width: 1100px) {
       #right-panel { display: none; }
+    }
+    @media (max-width: 900px) {
+      /* サイドバーをオーバーレイに変更 */
+      #history-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        z-index: 400;
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+        box-shadow: none;
+      }
+      #history-sidebar.open {
+        transform: translateX(0);
+        box-shadow: 4px 0 24px rgba(0,0,0,0.15);
+      }
+
+      /* ハンバーガーボタン表示 */
+      #sidebar-toggle { display: flex; align-items: center; justify-content: center; }
+
+      /* メッセージ幅をモバイル向けに拡大 */
+      .msg { max-width: 90%; }
+      .tool-steps { max-width: 95%; }
+
+      /* 入力エリアのパディング縮小 */
+      #input-area { padding: 10px 12px; }
+      #input-area button { padding: 0 14px; font-size: 13px; }
+
+      /* ヘッダーのパディング縮小 */
+      header { padding: 8px 12px; gap: 6px; }
+
+      /* メッセージエリアのパディング縮小 */
+      #messages { padding: 12px; }
     }
 
     /* ===== プロファイル管理ボタン ===== */
@@ -1325,27 +1519,49 @@
     </div>
   </div>
 
+  <!-- サイドバーオーバーレイ（モバイル） -->
+  <div id="sidebar-overlay"></div>
+
   <!-- ===== 中: チャットエリア ===== -->
   <div id="main">
     <header>
-      <span id="status" class="conn-status disconnected">切断</span>
-      <span id="session-display" class="session-id"></span>
+      <button id="sidebar-toggle" title="メニュー"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="18" y2="18"/></svg></button>
+      <div class="header-tabs">
+        <button class="header-tab active" id="tab-chat">チャット</button>
+        <button class="header-tab" id="tab-graph"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><line x1="6" x2="18" y1="9" y2="15"/><line x1="18" x2="6" y1="9" y2="15"/></svg>来歴</button>
+      </div>
       <span class="spacer"></span>
+      <span id="session-display" class="session-id"></span>
+      <span id="status" class="conn-status disconnected">切断</span>
     </header>
 
-    <div id="messages"></div>
+    <!-- チャットコンテンツ -->
+    <div id="chat-content">
+      <div id="messages"></div>
 
-    <div id="paste-banner">
-      <span>📋 引用をクリップボードに保持中</span>
-      <button id="paste-apply-btn">この会話に貼り付け</button>
-      <button id="paste-discard-btn" title="破棄">✕</button>
+      <div id="paste-banner">
+        <span>📋 引用をクリップボードに保持中</span>
+        <button id="paste-apply-btn">この会話に貼り付け</button>
+        <button id="paste-discard-btn" title="破棄">✕</button>
+      </div>
+
+      <div id="citation-area"></div>
+
+      <div id="input-area">
+        <textarea id="input" placeholder="メッセージを入力... (Ctrl+Enter で送信)" rows="1"></textarea>
+        <button id="send" disabled>送信</button>
+      </div>
     </div>
 
-    <div id="citation-area"></div>
-
-    <div id="input-area">
-      <textarea id="input" placeholder="メッセージを入力... (Enter で送信)" rows="1"></textarea>
-      <button id="send" disabled>送信</button>
+    <!-- 来歴グラフパネル -->
+    <div id="graph-panel">
+      <div id="graph-container"></div>
+      <div id="graph-legend">
+        <span class="legend-item"><span class="legend-dot" style="background:#4B7A52"></span> ユーザー</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#fff;border-color:#d5e0d7"></span> AI 応答</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#dbeafe"></span> ツール結果</span>
+        <span class="legend-item" style="margin-left:12px">→ 会話の流れ</span>
+      </div>
     </div>
   </div>
 
@@ -1452,6 +1668,7 @@
     let firstUserMessage = null; // 現セッションの最初のユーザーメッセージ（タイトル生成用）
     let manualDisconnect = false; // セッション切り替え時の自動再接続を抑制
     let suppressConnectMsg = false; // 過去セッション復元時の接続メッセージを抑制
+    let initialLoad = true; // 初回ロード時のチャット履歴復元フラグ
 
     // ===== Lucide SVG アイコン（インライン） =====
     const SVG_ATTRS = 'xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"';
@@ -1534,16 +1751,120 @@
           const title = getSessionTitle(s.session_id) || s.session_id.slice(0, 8);
           const time = s.last_at ? formatTimeAgo(new Date(s.last_at)) : '';
           html += `<div class="session-item${isCurrent ? ' active' : ''}" data-sid="${escapeHtml(s.session_id)}">
-            <div class="si-title">${escapeHtml(title)}</div>
-            <div class="si-time">${escapeHtml(time)}</div>
+            <div class="si-content">
+              <div class="si-title">${escapeHtml(title)}</div>
+              <div class="si-time">${escapeHtml(time)}</div>
+            </div>
+            <div class="si-menu-wrapper">
+              <button class="si-menu-btn" title="メニュー"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+              <div class="si-dropdown">
+                <button class="si-dropdown-item" data-rename-sid="${escapeHtml(s.session_id)}"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg>名前を変更</button>
+                <button class="si-dropdown-item danger" data-delete-sid="${escapeHtml(s.session_id)}"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>削除</button>
+              </div>
+            </div>
           </div>`;
         }
         sessionListEl.innerHTML = html;
         sessionListEl.querySelectorAll('.session-item[data-sid]').forEach(el => {
-          el.addEventListener('click', () => switchSession(el.dataset.sid));
+          el.addEventListener('click', (e) => {
+            if (e.target.closest('.si-menu-wrapper')) return;
+            switchSession(el.dataset.sid);
+          });
+        });
+        // 三点メニュー: クリックでドロップダウン開閉
+        sessionListEl.querySelectorAll('.si-menu-btn').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const dropdown = btn.nextElementSibling;
+            const wasOpen = dropdown.classList.contains('show');
+            closeAllDropdowns();
+            if (!wasOpen) {
+              dropdown.classList.add('show');
+              btn.classList.add('open');
+            }
+          });
+        });
+        // 名前変更ボタン
+        sessionListEl.querySelectorAll('.si-dropdown-item[data-rename-sid]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeAllDropdowns();
+            startRename(btn.dataset.renameSid);
+          });
+        });
+        // 削除ボタン
+        sessionListEl.querySelectorAll('.si-dropdown-item[data-delete-sid]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeAllDropdowns();
+            deleteSession(btn.dataset.deleteSid);
+          });
         });
       } catch {
         sessionListEl.innerHTML = '<div class="session-empty">取得失敗</div>';
+      }
+    }
+
+    // --- ドロップダウン制御 ---
+    function closeAllDropdowns() {
+      document.querySelectorAll('.si-dropdown.show').forEach(d => d.classList.remove('show'));
+      document.querySelectorAll('.si-menu-btn.open').forEach(b => b.classList.remove('open'));
+    }
+    document.addEventListener('click', () => closeAllDropdowns());
+
+    // --- セッション名変更 ---
+    function startRename(sid) {
+      const item = sessionListEl.querySelector(`.session-item[data-sid="${sid}"]`);
+      if (!item) return;
+      const titleEl = item.querySelector('.si-title');
+      const currentTitle = getSessionTitle(sid) || sid.slice(0, 8);
+
+      // タイトル要素をインライン入力に置き換え
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = currentTitle;
+      input.className = 'si-rename-input';
+      input.style.cssText = 'width:100%;font-size:13px;font-weight:500;font-family:inherit;padding:1px 4px;border:1px solid var(--primary);border-radius:4px;outline:none;background:var(--card);color:var(--foreground);';
+      titleEl.replaceWith(input);
+      input.focus();
+      input.select();
+
+      function commit() {
+        const newTitle = input.value.trim();
+        if (newTitle && newTitle !== currentTitle) {
+          saveSessionTitle(sid, newTitle);
+        }
+        loadSessionList();
+      }
+
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') { input.value = currentTitle; input.blur(); }
+      });
+      // セッション切り替えを防止
+      input.addEventListener('click', (e) => e.stopPropagation());
+    }
+
+    // --- セッション削除 ---
+    async function deleteSession(sid) {
+      if (!confirm('このチャット履歴を削除しますか？')) return;
+      try {
+        const resp = await fetch(`/provenance/${sid}`, { method: 'DELETE' });
+        if (!resp.ok && resp.status !== 204) throw new Error(`HTTP ${resp.status}`);
+        // localStorage のタイトルも削除
+        try {
+          const titles = JSON.parse(localStorage.getItem(TITLE_KEY) || '{}');
+          delete titles[sid];
+          localStorage.setItem(TITLE_KEY, JSON.stringify(titles));
+        } catch {}
+        // 現在表示中のセッションを削除した場合は新規セッションに切り替え
+        if (sid === wsSessionId) {
+          newSession();
+        }
+        loadSessionList();
+      } catch {
+        showToast('削除に失敗しました');
       }
     }
 
@@ -1565,6 +1886,11 @@
       manualDisconnect = true;
       if (ws) ws.close();
       connect();
+
+      // 来歴グラフが開いていれば再描画
+      if (graphPanel.classList.contains('open')) {
+        showGraph();
+      }
 
       loadSessionList();
     }
@@ -1701,6 +2027,7 @@
       localStorage.setItem(STORAGE_KEY, wsSessionId);
       firstUserMessage = null;
       messagesEl.innerHTML = '';
+      hideGraph();
       manualDisconnect = true;
       if (ws) ws.close();
       connect();
@@ -1812,6 +2139,11 @@
           addSystemMsg('エージェントに接続しました');
         }
         suppressConnectMsg = false;
+        // 初回ロード時に現セッションのチャット履歴を復元
+        if (initialLoad) {
+          initialLoad = false;
+          loadSessionMessages(wsSessionId).catch(() => {});
+        }
         loadSessionList();
       };
 
@@ -1951,13 +2283,6 @@
             `<button class="msg-action-btn" data-action="copy" data-tooltip="別セッションにコピー">${ICON.copy}</button>`;
         }
         wrapper.appendChild(actions);
-
-        wrapper.addEventListener('mouseenter', () => {
-          if (wrapper.dataset.entityId) actions.style.display = 'flex';
-        });
-        wrapper.addEventListener('mouseleave', () => {
-          actions.style.display = 'none';
-        });
 
         actions.querySelectorAll('.msg-action-btn').forEach(btn => {
           btn.addEventListener('click', () => {
@@ -2566,7 +2891,7 @@
     });
 
     inputEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         send();
       }
@@ -2580,6 +2905,326 @@
       planToggleBtn.classList.toggle('on', planMode);
       planToggleBtn.title = planMode ? 'ON' : 'OFF';
     });
+
+    // --- 来歴グラフ ---
+    const graphPanel = document.getElementById('graph-panel');
+    const graphContainer = document.getElementById('graph-container');
+    const chatContent = document.getElementById('chat-content');
+    const tabChat = document.getElementById('tab-chat');
+    const tabGraph = document.getElementById('tab-graph');
+    let cyInstance = null;
+
+    const PROV_COLORS = {
+      user_message:   { bg: '#4B7A52', fg: '#fff' },
+      agent_response: { bg: '#e8f0e8', fg: '#1a2e1d' },
+      tool_result:    { bg: '#dbeafe', fg: '#1e3a5f' },
+      activity:       { bg: '#fef3c7', fg: '#78350f' },
+      agent:          { bg: '#f3e8ff', fg: '#581c87' },
+    };
+
+    function provColor(node) {
+      if (node.node_type === 'activity') return PROV_COLORS.activity;
+      if (node.node_type === 'agent') return PROV_COLORS.agent;
+      return PROV_COLORS[node.prov_type] || PROV_COLORS.agent_response;
+    }
+
+    function provLabel(node) {
+      // label はバックエンドがコンテンツ先頭40文字をセット済み
+      if (node.node_type === 'entity') return node.label || node.prov_type;
+      if (node.node_type === 'agent') return node.label || 'Agent';
+      return node.label || node.prov_type || 'activity';
+    }
+
+    function provShape(node) {
+      if (node.node_type === 'activity') return 'diamond';
+      if (node.node_type === 'agent') return 'ellipse';
+      return 'round-rectangle';
+    }
+
+    async function showGraph() {
+      if (!wsSessionId) return;
+      graphPanel.classList.add('open');
+      chatContent.classList.add('hidden');
+
+      try {
+        const resp = await fetch(`/provenance/${wsSessionId}/graph`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+
+        // --- Entity のみの簡易グラフを構築 ---
+        // Activity を介して user_message → agent_response を直結
+        // 連続ターンの response → 次の user_message も接続
+
+        const nodeMap = {};  // id → node
+        for (const n of data.nodes) nodeMap[n.id] = n;
+
+        // Activity ごとに入力 Entity と出力 Entity を特定
+        // used(activity, entity) → 入力, wasGeneratedBy(entity, activity) → 出力
+        const activityInput = {};   // activity_id → entity_id (user_message)
+        const activityOutput = {};  // activity_id → entity_id (agent_response)
+
+        for (const e of data.edges) {
+          if (e.relation === 'used' && (!e.role || e.role === 'input')) {
+            const target = nodeMap[e.target];
+            if (target && target.node_type === 'entity') activityInput[e.source] = e.target;
+          }
+          if (e.relation === 'wasGeneratedBy') {
+            const source = nodeMap[e.source];
+            if (source && source.node_type === 'entity') activityOutput[e.target] = e.source;
+          }
+        }
+
+        // このセッションの Entity のみ抽出（クロスセッション stub を除外）
+        const entities = data.nodes
+          .filter(n => n.node_type === 'entity' && n.session_id === wsSessionId)
+          .sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+
+        const elements = [];
+
+        // Entity ノードを追加
+        for (const n of entities) {
+          const isUser = n.prov_type === 'user_message';
+          const isResponse = n.prov_type === 'agent_response';
+          const isTool = n.prov_type === 'tool_result';
+          elements.push({
+            data: {
+              id: n.id,
+              label: n.label || n.prov_type,
+              bgColor: isUser ? '#4B7A52' : isResponse ? '#ffffff' : '#dbeafe',
+              fgColor: isUser ? '#ffffff' : '#1a2e1d',
+              borderColor: isUser ? '#3d6844' : isResponse ? '#d5e0d7' : '#93c5fd',
+              nodeType: n.prov_type,
+            },
+          });
+        }
+
+        // === リレーションベースでエッジ構築（時系列に依存しない） ===
+
+        // Activity を時系列順にソート
+        const activities = data.nodes
+          .filter(n => n.node_type === 'activity')
+          .sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+
+        // ターン内エッジ: user_message → agent_response（Activity の input → output）
+        for (const a of activities) {
+          const inputId = activityInput[a.id];
+          const outputId = activityOutput[a.id];
+          if (inputId && outputId) {
+            elements.push({
+              data: { id: `turn-${a.id}`, source: inputId, target: outputId, label: '' },
+            });
+          }
+        }
+
+        // ターン間エッジ: Activity チェーンから構築
+        // used(activity, entity, role="context") を辿って response → 次の input を接続
+        const contextUsed = {};  // activity_id → context_entity_id
+        for (const e of data.edges) {
+          if (e.relation === 'used' && e.role === 'context') {
+            contextUsed[e.source] = e.target;
+          }
+        }
+
+        for (const a of activities) {
+          const contextEntityId = contextUsed[a.id];
+          const inputId = activityInput[a.id];
+          if (contextEntityId && inputId) {
+            // prev_response → current_user_message
+            elements.push({
+              data: {
+                id: `ctx-${a.id}`,
+                source: contextEntityId,
+                target: inputId,
+              },
+            });
+          }
+        }
+
+        // wasInfluencedBy エッジ（このセッションが参照した外部 Entity のみ）
+        // 他セッションから参照「された」エッジは表示しない
+        const sessionEntityIds = new Set(entities.map(en => en.id));
+        for (const e of data.edges) {
+          if (e.relation === 'wasInfluencedBy' || e.relation === 'wasDerivedFrom') {
+            const derivedId = e.source;  // 影響を受けた Entity（PROV: derived）
+            const sourceId = e.target;   // 引用元 Entity（PROV: source）
+
+            // このセッションの Entity が参照した場合のみ表示
+            if (!sessionEntityIds.has(derivedId)) continue;
+
+            const src = nodeMap[derivedId];
+            const tgt = nodeMap[sourceId];
+            if (src && src.node_type === 'entity' && tgt && tgt.node_type === 'entity') {
+              // クロスセッション Entity ノードが未追加なら追加（オレンジ枠で区別）
+              if (!sessionEntityIds.has(sourceId)) {
+                const isUser = tgt.prov_type === 'user_message';
+                elements.push({
+                  data: {
+                    id: tgt.id,
+                    label: tgt.label || tgt.prov_type,
+                    bgColor: isUser ? '#4B7A52' : '#ffffff',
+                    fgColor: isUser ? '#ffffff' : '#1a2e1d',
+                    borderColor: '#f59e0b',
+                    nodeType: tgt.prov_type,
+                  },
+                });
+              }
+              // 表示: 引用元 → 影響を受けた response（順方向）
+              elements.push({
+                data: {
+                  id: `inf-${derivedId}-${sourceId}`,
+                  source: sourceId,
+                  target: derivedId,
+                },
+              });
+            }
+          }
+        }
+
+        // === 列（ブランチ）レベル計算 ===
+        // 分岐（wasRevisionOf）もクロスセッション参照も新しい列に配置
+
+        // 1. 分岐による列分け
+        const revisionNewIds = new Set();
+        for (const e of data.edges) {
+          if (e.relation === 'wasRevisionOf') revisionNewIds.add(e.source);
+        }
+        const entityBranch = {};
+        let currentBranch = 0;
+        for (const e of entities) {
+          if (revisionNewIds.has(e.id)) currentBranch++;
+          entityBranch[e.id] = currentBranch;
+        }
+
+        // 2. クロスセッション Entity の列・Y位置計算
+        // 影響を受けた Entity の Y 位置の少し上に、右列に配置
+        const crossSessionPos = {};  // entity_id → { x, y }
+        let crossCol = currentBranch + 1;
+        const crossColMap = {};  // source_entity_id → column
+
+        for (const e of data.edges) {
+          if (e.relation === 'wasInfluencedBy' || e.relation === 'wasDerivedFrom') {
+            const sourceId = e.target;   // 引用元（クロスセッション）
+            const derivedId = e.source;  // 影響を受けた Entity（このセッション）
+
+            if (!crossSessionPos[sourceId]) {
+              // 引用元にまだ列が割り当てられていなければ新規列
+              if (!crossColMap[sourceId]) {
+                crossColMap[sourceId] = crossCol++;
+              }
+
+              // 影響を受けた Entity の Y 位置を基準に配置
+              const derivedIdx = entities.findIndex(en => en.id === derivedId);
+              const y = derivedIdx >= 0 ? (derivedIdx - 1) * 100 : 0;
+              crossSessionPos[sourceId] = {
+                x: crossColMap[sourceId] * 400,
+                y: Math.max(0, y),
+              };
+            }
+          }
+        }
+
+        if (cyInstance) cyInstance.destroy();
+
+        cyInstance = cytoscape({
+          container: graphContainer,
+          elements,
+          style: [
+            {
+              selector: 'node',
+              style: {
+                'label': 'data(label)',
+                'background-color': 'data(bgColor)',
+                'color': 'data(fgColor)',
+                'text-valign': 'center',
+                'text-halign': 'center',
+                'font-size': '11px',
+                'font-family': 'Inter, sans-serif',
+                'text-wrap': 'wrap',
+                'text-max-width': '160px',
+                'width': 'label',
+                'height': 'label',
+                'padding': '12px',
+                'shape': 'round-rectangle',
+                'border-width': 1.5,
+                'border-color': 'data(borderColor)',
+                'text-outline-width': 0,
+              },
+            },
+            {
+              selector: 'edge',
+              style: {
+                'curve-style': 'straight',
+                'target-arrow-shape': 'triangle',
+                'target-arrow-color': '#b8d4bb',
+                'line-color': '#b8d4bb',
+                'width': 1.5,
+                'arrow-scale': 0.8,
+              },
+            },
+          ],
+          layout: {
+            name: 'preset',
+            positions: (node) => {
+              const nodeId = node.id();
+
+              // クロスセッション Entity
+              if (crossSessionPos[nodeId]) return crossSessionPos[nodeId];
+
+              const idx = entities.findIndex(e => e.id === nodeId);
+              if (idx < 0) return { x: 0, y: 0 };
+              const branch = entityBranch[entities[idx].id] || 0;
+              const x = branch * 400;
+              const y = idx * 100;
+              return { x, y };
+            },
+          },
+          userZoomingEnabled: true,
+          userPanningEnabled: true,
+          boxSelectionEnabled: false,
+        });
+
+        cyInstance.fit(undefined, 40);
+      } catch (err) {
+        graphContainer.innerHTML = `<div style="padding:20px;color:var(--muted-foreground)">グラフの読み込みに失敗しました: ${err.message}</div>`;
+      }
+    }
+
+    function hideGraph() {
+      graphPanel.classList.remove('open');
+      chatContent.classList.remove('hidden');
+      tabChat.classList.add('active');
+      tabGraph.classList.remove('active');
+    }
+
+    function switchToGraph() {
+      chatContent.classList.add('hidden');
+      tabGraph.classList.add('active');
+      tabChat.classList.remove('active');
+      showGraph();
+    }
+
+    tabChat.addEventListener('click', hideGraph);
+    tabGraph.addEventListener('click', switchToGraph);
+
+    // --- モバイル: サイドバー開閉 ---
+    const sidebarToggle = document.getElementById('sidebar-toggle');
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
+    const historySidebar = document.getElementById('history-sidebar');
+
+    function openSidebar() {
+      historySidebar.classList.add('open');
+      sidebarOverlay.classList.add('visible');
+    }
+    function closeSidebar() {
+      historySidebar.classList.remove('open');
+      sidebarOverlay.classList.remove('visible');
+    }
+    sidebarToggle.addEventListener('click', openSidebar);
+    sidebarOverlay.addEventListener('click', closeSidebar);
+
+    // セッション切り替え・新規チャット時にモバイルサイドバーを閉じる
+    sessionListEl.addEventListener('click', () => closeSidebar());
+    newChatBtn.addEventListener('click', () => closeSidebar());
 
     // --- 初期化 ---
     loadHealth();
