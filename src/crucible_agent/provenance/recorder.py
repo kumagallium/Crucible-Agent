@@ -99,31 +99,46 @@ async def record_agent_run(
         ))
 
         # prov:used — 前ターンの agent_response をコンテキストとして使った
-        # 編集時: edit_from_entity_id の直前の response を使う
+        # リレーションベース: 直前の Activity の出力（wasGeneratedBy）を辿る
+        prev_resp_entity = None
         if edit_from_entity_id:
-            # 編集元 Entity の作成時刻より前の最新 response を取得
-            edit_entity = await db.get(ProvenanceEntity, edit_from_entity_id)
-            if edit_entity:
-                prev_response = await db.execute(
-                    select(ProvenanceEntity)
-                    .where(ProvenanceEntity.session_id == session_id)
-                    .where(ProvenanceEntity.type == "agent_response")
-                    .where(ProvenanceEntity.created_at < edit_entity.created_at)
-                    .order_by(ProvenanceEntity.created_at.desc())
-                    .limit(1)
-                )
-                prev_resp_entity = prev_response.scalar_one_or_none()
-            else:
-                prev_resp_entity = None
-        else:
-            prev_response = await db.execute(
-                select(ProvenanceEntity)
-                .where(ProvenanceEntity.session_id == session_id)
-                .where(ProvenanceEntity.type == "agent_response")
-                .order_by(ProvenanceEntity.created_at.desc())
+            # 編集時: edit_from_entity_id を入力として使った Activity を探し、
+            # その Activity の出力（response）を context とする
+            usage_result = await db.execute(
+                select(ProvenanceUsage)
+                .where(ProvenanceUsage.entity_id == edit_from_entity_id)
+                .where(ProvenanceUsage.role == "input")
                 .limit(1)
             )
-            prev_resp_entity = prev_response.scalar_one_or_none()
+            prev_usage = usage_result.scalar_one_or_none()
+            if prev_usage:
+                # その Activity が生成した response を取得
+                resp_result = await db.execute(
+                    select(ProvenanceEntity)
+                    .where(ProvenanceEntity.generated_by == prev_usage.activity_id)
+                    .where(ProvenanceEntity.type == "agent_response")
+                    .limit(1)
+                )
+                prev_resp_entity = resp_result.scalar_one_or_none()
+        else:
+            # 通常: このセッションの直前の Activity の出力を取得
+            prev_act_result = await db.execute(
+                select(ProvenanceActivity)
+                .where(ProvenanceActivity.session_id == session_id)
+                .where(ProvenanceActivity.id != activity.id)
+                .order_by(ProvenanceActivity.started_at.desc())
+                .limit(1)
+            )
+            prev_activity = prev_act_result.scalar_one_or_none()
+            if prev_activity:
+                resp_result = await db.execute(
+                    select(ProvenanceEntity)
+                    .where(ProvenanceEntity.generated_by == prev_activity.id)
+                    .where(ProvenanceEntity.type == "agent_response")
+                    .limit(1)
+                )
+                prev_resp_entity = resp_result.scalar_one_or_none()
+
         if prev_resp_entity:
             db.add(ProvenanceUsage(
                 activity_id=activity.id,

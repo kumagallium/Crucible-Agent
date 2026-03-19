@@ -2760,8 +2760,14 @@
           });
         }
 
-        // ターン内エッジ: user_message → agent_response（同一 Activity 経由）
-        const activities = data.nodes.filter(n => n.node_type === 'activity');
+        // === リレーションベースでエッジ構築（時系列に依存しない） ===
+
+        // Activity を時系列順にソート
+        const activities = data.nodes
+          .filter(n => n.node_type === 'activity')
+          .sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
+
+        // ターン内エッジ: user_message → agent_response（Activity の input → output）
         for (const a of activities) {
           const inputId = activityInput[a.id];
           const outputId = activityOutput[a.id];
@@ -2772,23 +2778,28 @@
           }
         }
 
-        // wasRevisionOf の対象を先に収集（ターン間接続から除外するため）
-        const revisionTargets = new Set();  // 編集先（new entity）の ID
+        // ターン間エッジ: Activity チェーンから構築
+        // used(activity, entity, role="context") を辿って response → 次の input を接続
+        const contextUsed = {};  // activity_id → context_entity_id
         for (const e of data.edges) {
-          if (e.relation === 'wasRevisionOf') revisionTargets.add(e.source);
+          if (e.relation === 'used' && e.role === 'context') {
+            contextUsed[e.source] = e.target;
+          }
         }
 
-        // ターン間エッジ: agent_response → 次の user_message（時系列順で接続）
-        // ただし、次の user_message が wasRevisionOf の対象（編集後）なら接続しない
-        for (let i = 0; i < entities.length - 1; i++) {
-          const curr = entities[i];
-          const next = entities[i + 1];
-          if (curr.prov_type === 'agent_response' && next.prov_type === 'user_message') {
-            if (!revisionTargets.has(next.id)) {
-              elements.push({
-                data: { id: `seq-${i}`, source: curr.id, target: next.id, label: 'used' },
-              });
-            }
+        for (const a of activities) {
+          const contextEntityId = contextUsed[a.id];
+          const inputId = activityInput[a.id];
+          if (contextEntityId && inputId) {
+            // prev_response → current_user_message
+            elements.push({
+              data: {
+                id: `ctx-${a.id}`,
+                source: contextEntityId,
+                target: inputId,
+                label: 'used',
+              },
+            });
           }
         }
 
