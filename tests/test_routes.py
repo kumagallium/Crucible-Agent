@@ -24,7 +24,10 @@ from crucible_agent.crucible.discovery import DiscoveredServer
 
 @pytest.fixture()
 def client():
-    with patch("crucible_agent.main.init_db", new_callable=AsyncMock):
+    with (
+        patch("crucible_agent.main.init_db", new_callable=AsyncMock),
+        patch("crucible_agent.main.seed_default_profiles", new_callable=AsyncMock),
+    ):
         from crucible_agent.main import app
 
         with TestClient(app) as c:

@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from crucible_agent import __version__
 from crucible_agent.api.routes import router
 from crucible_agent.config import settings
+from crucible_agent.profiles.repository import seed_default_profiles
 from crucible_agent.provenance.recorder import init_db
 
 CHAT_UI_DIR = Path(__file__).parent.parent.parent / "chat-ui"
@@ -25,6 +26,7 @@ logging.basicConfig(
 async def lifespan(app: FastAPI):
     """アプリケーション起動時の初期化"""
     await init_db()
+    await seed_default_profiles()
     yield
 
 
