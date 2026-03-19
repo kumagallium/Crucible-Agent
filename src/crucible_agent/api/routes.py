@@ -19,6 +19,7 @@ from crucible_agent.api.schemas import (
     BranchRequest,
     BranchResponse,
     EntityResponse,
+    GraphResponse,
     HealthResponse,
     ProfileCreate,
     ProfileInfo,
@@ -42,6 +43,7 @@ from crucible_agent.profiles.repository import (
 from crucible_agent.provenance.recorder import (
     get_conversation_history_until,
     get_entity,
+    get_provenance_graph,
     get_session_history,
     list_sessions,
     record_agent_run,
@@ -321,10 +323,22 @@ async def provenance_sessions() -> list[dict]:
     return await list_sessions()
 
 
-@router.get("/provenance/{session_id}")
+@router.get("/provenance/{session_id}", response_model=list[dict])
 async def provenance_detail(session_id: str) -> list[dict]:
     """セッションの来歴（PROV-DM Activity チェーン）を返す"""
     return await get_session_history(session_id)
+
+
+@router.get("/provenance/{session_id}/graph", response_model=GraphResponse)
+async def provenance_graph(session_id: str) -> GraphResponse:
+    """セッションの来歴グラフを返す（フロントエンド可視化用）
+
+    クロスセッションの derivation エッジも含む。
+    ノード: Entity / Activity / Agent
+    エッジ: wasGeneratedBy / used / wasAssociatedWith / wasInfluencedBy / wasDerivedFrom
+    """
+    graph = await get_provenance_graph(session_id)
+    return GraphResponse(nodes=graph["nodes"], edges=graph["edges"])
 
 
 @router.websocket("/agent/ws")
