@@ -2781,7 +2781,7 @@
           if (curr.prov_type === 'agent_response' && next.prov_type === 'user_message') {
             if (!revisionTargets.has(next.id)) {
               elements.push({
-                data: { id: `seq-${i}`, source: curr.id, target: next.id, label: '' },
+                data: { id: `seq-${i}`, source: curr.id, target: next.id, label: 'used' },
               });
             }
           }
@@ -2837,6 +2837,12 @@
             {
               selector: 'edge',
               style: {
+                'label': 'data(label)',
+                'font-size': '9px',
+                'font-family': 'Inter, sans-serif',
+                'color': '#6b7f6e',
+                'text-rotation': 'autorotate',
+                'text-margin-y': -8,
                 'curve-style': 'bezier',
                 'target-arrow-shape': 'triangle',
                 'target-arrow-color': '#b8d4bb',

@@ -53,6 +53,8 @@ async def record_agent_run(
     Returns:
         dict with "activity_id" and "response_entity_id"
     """
+    from sqlalchemy import select
+
     async with _session_factory() as db:
         # Agent: LLM 実行者（provider/model_id を記録）
         llm_agent = ProvenanceAgent(
@@ -94,6 +96,22 @@ async def record_agent_run(
             entity_id=user_entity.id,
             role="input",
         ))
+
+        # prov:used — 前ターンの agent_response をコンテキストとして使った
+        prev_response = await db.execute(
+            select(ProvenanceEntity)
+            .where(ProvenanceEntity.session_id == session_id)
+            .where(ProvenanceEntity.type == "agent_response")
+            .order_by(ProvenanceEntity.created_at.desc())
+            .limit(1)
+        )
+        prev_resp_entity = prev_response.scalar_one_or_none()
+        if prev_resp_entity:
+            db.add(ProvenanceUsage(
+                activity_id=activity.id,
+                entity_id=prev_resp_entity.id,
+                role="context",
+            ))
 
         # Entity: エージェント応答
         response_entity = ProvenanceEntity(
