@@ -1434,7 +1434,6 @@
         <span class="legend-item"><span class="legend-dot" style="background:#fff;border-color:#d5e0d7"></span> AI 応答</span>
         <span class="legend-item"><span class="legend-dot" style="background:#dbeafe"></span> ツール結果</span>
         <span class="legend-item" style="margin-left:12px">→ 会話の流れ</span>
-        <span class="legend-item" style="color:#b45309">⇢ 編集</span>
       </div>
     </div>
 
@@ -2852,29 +2851,8 @@
                 id: `ctx-${a.id}`,
                 source: contextEntityId,
                 target: inputId,
-                label: 'used',
               },
             });
-          }
-        }
-
-        // wasRevisionOf エッジ（編集関係）
-        for (const e of data.edges) {
-          if (e.relation === 'wasRevisionOf') {
-            const src = nodeMap[e.source];
-            const tgt = nodeMap[e.target];
-            if (src && src.node_type === 'entity' && tgt && tgt.node_type === 'entity') {
-              // PROV: new→original だが、表示は original→new（直感的な順方向）
-              elements.push({
-                data: {
-                  id: `rev-${e.target}-${e.source}`,
-                  source: e.target,
-                  target: e.source,
-                  label: '編集',
-                  isRevision: 'true',
-                },
-              });
-            }
           }
         }
 
@@ -2920,12 +2898,6 @@
             {
               selector: 'edge',
               style: {
-                'label': 'data(label)',
-                'font-size': '9px',
-                'font-family': 'Inter, sans-serif',
-                'color': '#6b7f6e',
-                'text-rotation': 'autorotate',
-                'text-margin-y': -8,
                 'curve-style': 'taxi',
                 'taxi-direction': 'downward',
                 'taxi-turn': '50px',
@@ -2934,20 +2906,6 @@
                 'line-color': '#b8d4bb',
                 'width': 1.5,
                 'arrow-scale': 0.8,
-              },
-            },
-            {
-              selector: 'edge[isRevision = "true"]',
-              style: {
-                'line-color': '#f59e0b',
-                'line-style': 'dashed',
-                'target-arrow-color': '#f59e0b',
-                'label': 'data(label)',
-                'font-size': '9px',
-                'font-family': 'Inter, sans-serif',
-                'color': '#b45309',
-                'text-rotation': 'autorotate',
-                'text-margin-y': -8,
               },
             },
           ],
