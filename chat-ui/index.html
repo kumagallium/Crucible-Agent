@@ -2501,7 +2501,8 @@
 
     branchConfirmBtn.addEventListener('click', () => {
       const msg = branchInputEl.value.trim();
-      if (!msg || !branchEntityId) return;
+      const editEntityId = branchEntityId;  // closeBranchModal でリセットされる前に保存
+      if (!msg || !editEntityId) return;
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         showToast('接続されていません');
         return;
@@ -2509,7 +2510,7 @@
 
       // 編集元メッセージ以降の UI を非表示にする（ページネーションで戻れるよう保持）
       const editWrapper = messagesEl.querySelector(
-        `.msg-wrapper[data-entity-id="${CSS.escape(branchEntityId)}"]`
+        `.msg-wrapper[data-entity-id="${CSS.escape(editEntityId)}"]`
       );
       if (editWrapper) {
         // 編集元自身と、それ以降の wrapper + revision-nav を非表示
@@ -2535,7 +2536,7 @@
       const payload = {
         type: 'message',
         content: msg,
-        edit_from_entity_id: branchEntityId,
+        edit_from_entity_id: editEntityId,
       };
       if (profileEl.value) payload.profile = profileEl.value;
       if (customInstrEl.value.trim()) payload.custom_instructions = customInstrEl.value.trim();
