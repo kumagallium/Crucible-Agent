@@ -1316,8 +1316,28 @@
     loadHealth();
     loadProfiles();
     loadTools();
-    connect();
     setInterval(loadHealth, 30000);
+
+    // ページロード時に現在のセッション履歴を復元してから接続
+    fetch(`/provenance/${wsSessionId}`)
+      .then(r => r.json())
+      .then(items => {
+        const agentRuns = items.filter(i => i.type === 'agent_run');
+        if (agentRuns.length) {
+          addSystemMsg(`📂 セッション ${wsSessionId.slice(0, 8)} を復元しました（${agentRuns.length} ターン）`);
+          for (const item of agentRuns) {
+            const userMsg = (item.input || {}).message;
+            const agentResp = (item.output || {}).response;
+            if (userMsg) addMsg(userMsg, 'user');
+            if (agentResp) {
+              const el = addMsg('', 'agent');
+              el.innerHTML = renderMarkdown(agentResp);
+            }
+          }
+        }
+      })
+      .catch(() => {})
+      .finally(() => connect());
   </script>
 </body>
 </html>
