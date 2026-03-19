@@ -1693,6 +1693,7 @@
             <div class="si-menu-wrapper">
               <button class="si-menu-btn" title="メニュー"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
               <div class="si-dropdown">
+                <button class="si-dropdown-item" data-rename-sid="${escapeHtml(s.session_id)}"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg>名前を変更</button>
                 <button class="si-dropdown-item danger" data-delete-sid="${escapeHtml(s.session_id)}"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>削除</button>
               </div>
             </div>
@@ -1718,6 +1719,14 @@
             }
           });
         });
+        // 名前変更ボタン
+        sessionListEl.querySelectorAll('.si-dropdown-item[data-rename-sid]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            closeAllDropdowns();
+            startRename(btn.dataset.renameSid);
+          });
+        });
         // 削除ボタン
         sessionListEl.querySelectorAll('.si-dropdown-item[data-delete-sid]').forEach(btn => {
           btn.addEventListener('click', (e) => {
@@ -1737,6 +1746,40 @@
       document.querySelectorAll('.si-menu-btn.open').forEach(b => b.classList.remove('open'));
     }
     document.addEventListener('click', () => closeAllDropdowns());
+
+    // --- セッション名変更 ---
+    function startRename(sid) {
+      const item = sessionListEl.querySelector(`.session-item[data-sid="${sid}"]`);
+      if (!item) return;
+      const titleEl = item.querySelector('.si-title');
+      const currentTitle = getSessionTitle(sid) || sid.slice(0, 8);
+
+      // タイトル要素をインライン入力に置き換え
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = currentTitle;
+      input.className = 'si-rename-input';
+      input.style.cssText = 'width:100%;font-size:13px;font-weight:500;font-family:inherit;padding:1px 4px;border:1px solid var(--primary);border-radius:4px;outline:none;background:var(--card);color:var(--foreground);';
+      titleEl.replaceWith(input);
+      input.focus();
+      input.select();
+
+      function commit() {
+        const newTitle = input.value.trim();
+        if (newTitle && newTitle !== currentTitle) {
+          saveSessionTitle(sid, newTitle);
+        }
+        loadSessionList();
+      }
+
+      input.addEventListener('blur', commit);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') { input.value = currentTitle; input.blur(); }
+      });
+      // セッション切り替えを防止
+      input.addEventListener('click', (e) => e.stopPropagation());
+    }
 
     // --- セッション削除 ---
     async function deleteSession(sid) {
@@ -2931,13 +2974,27 @@
         }
 
         // wasInfluencedBy エッジ（引用・コピーによるクロスセッション参照）
+        const sessionEntityIds = new Set(entities.map(en => en.id));
         for (const e of data.edges) {
           if (e.relation === 'wasInfluencedBy' || e.relation === 'wasDerivedFrom') {
             const src = nodeMap[e.source];
             const tgt = nodeMap[e.target];
             if (src && src.node_type === 'entity' && tgt && tgt.node_type === 'entity') {
-              // source(response) が target(引用元) に影響を受けた
-              // 表示: 引用元 → response（順方向）
+              // クロスセッション Entity ノードが未追加なら追加（オレンジ枠で区別）
+              if (!sessionEntityIds.has(tgt.id)) {
+                const isUser = tgt.prov_type === 'user_message';
+                elements.push({
+                  data: {
+                    id: tgt.id,
+                    label: tgt.label || tgt.prov_type,
+                    bgColor: isUser ? '#4B7A52' : '#ffffff',
+                    fgColor: isUser ? '#ffffff' : '#1a2e1d',
+                    borderColor: '#f59e0b',
+                    nodeType: tgt.prov_type,
+                  },
+                });
+              }
+              // 表示: 引用元 → 影響を受けた response（順方向）
               elements.push({
                 data: {
                   id: `inf-${e.source}-${e.target}`,
@@ -2949,7 +3006,10 @@
           }
         }
 
-        // ブランチレベル計算（wasRevisionOf のリレーションから構築）
+        // === 列（ブランチ）レベル計算 ===
+        // 分岐（wasRevisionOf）もクロスセッション参照も新しい列に配置
+
+        // 1. 分岐による列分け
         const revisionNewIds = new Set();
         for (const e of data.edges) {
           if (e.relation === 'wasRevisionOf') revisionNewIds.add(e.source);
@@ -2959,6 +3019,34 @@
         for (const e of entities) {
           if (revisionNewIds.has(e.id)) currentBranch++;
           entityBranch[e.id] = currentBranch;
+        }
+
+        // 2. クロスセッション Entity の列・Y位置計算
+        // 影響を受けた Entity の Y 位置の少し上に、右列に配置
+        const crossSessionPos = {};  // entity_id → { x, y }
+        let crossCol = currentBranch + 1;
+        const crossColMap = {};  // source_entity_id → column
+
+        for (const e of data.edges) {
+          if (e.relation === 'wasInfluencedBy' || e.relation === 'wasDerivedFrom') {
+            const sourceId = e.target;   // 引用元（クロスセッション）
+            const derivedId = e.source;  // 影響を受けた Entity（このセッション）
+
+            if (!crossSessionPos[sourceId]) {
+              // 引用元にまだ列が割り当てられていなければ新規列
+              if (!crossColMap[sourceId]) {
+                crossColMap[sourceId] = crossCol++;
+              }
+
+              // 影響を受けた Entity の Y 位置を基準に配置
+              const derivedIdx = entities.findIndex(en => en.id === derivedId);
+              const y = derivedIdx >= 0 ? (derivedIdx - 1) * 100 : 0;
+              crossSessionPos[sourceId] = {
+                x: crossColMap[sourceId] * 400,
+                y: Math.max(0, y),
+              };
+            }
+          }
         }
 
         if (cyInstance) cyInstance.destroy();
@@ -3005,10 +3093,14 @@
           layout: {
             name: 'preset',
             positions: (node) => {
-              const idx = entities.findIndex(e => e.id === node.id());
+              const nodeId = node.id();
+
+              // クロスセッション Entity
+              if (crossSessionPos[nodeId]) return crossSessionPos[nodeId];
+
+              const idx = entities.findIndex(e => e.id === nodeId);
               if (idx < 0) return { x: 0, y: 0 };
               const branch = entityBranch[entities[idx].id] || 0;
-              // 同じブランチは同じ列、編集分岐のみ右にオフセット
               const x = branch * 400;
               const y = idx * 100;
               return { x, y };
