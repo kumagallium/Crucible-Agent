@@ -340,6 +340,219 @@
       font-style: italic;
     }
 
+    /* ===== メッセージラッパー & アクションボタン ===== */
+    .msg-wrapper {
+      display: flex;
+      flex-direction: column;
+    }
+    .msg-wrapper-user { align-items: flex-end; }
+    .msg-wrapper-agent { align-items: flex-start; }
+
+    .msg-actions {
+      display: none;
+      gap: 2px;
+      padding: 2px 4px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-full);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-top: 3px;
+    }
+
+    .msg-action-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      padding: 2px 5px;
+      border-radius: 4px;
+      opacity: 0.65;
+      transition: opacity 0.15s, background 0.15s;
+      title: attr(title);
+    }
+    .msg-action-btn:hover { opacity: 1; background: var(--muted); }
+
+    /* ===== 引用カードエリア ===== */
+    #citation-area {
+      display: none;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px 20px 0;
+      background: var(--card);
+      border-top: 1px solid var(--border);
+    }
+    #citation-area.has-cards { display: flex; }
+
+    .citation-card {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--accent);
+      border: 1px solid var(--ring);
+      border-radius: var(--radius-lg);
+      padding: 3px 8px;
+      font-size: 12px;
+      color: var(--accent-fg);
+      max-width: 260px;
+    }
+    .citation-card-icon { font-size: 11px; opacity: 0.7; }
+    .citation-card-preview {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 190px;
+    }
+    .citation-card-remove {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--muted-fg);
+      line-height: 1;
+      padding: 0 0 0 2px;
+      flex-shrink: 0;
+    }
+    .citation-card-remove:hover { color: var(--error-fg); }
+
+    /* ===== 貼り付けバナー ===== */
+    #paste-banner {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      background: var(--info-bg);
+      border: 1px solid var(--info-border);
+      border-radius: var(--radius-lg);
+      font-size: 12px;
+      color: var(--info-fg);
+      margin: 0 20px 6px;
+    }
+    #paste-banner.visible { display: flex; }
+    #paste-apply-btn {
+      background: var(--primary);
+      color: var(--primary-fg);
+      border: none;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    #paste-discard-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--muted-fg);
+      padding: 0;
+    }
+
+    /* ===== 分岐モーダル ===== */
+    #branch-modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    #branch-modal-overlay.open { display: flex; }
+
+    #branch-modal {
+      background: var(--card);
+      border-radius: var(--radius-xl);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+      width: 440px;
+      max-width: 92vw;
+      overflow: hidden;
+    }
+    #branch-modal .bm-header {
+      padding: 16px 20px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #branch-modal .bm-header h3 { font-size: 15px; font-weight: 600; }
+    #branch-modal .bm-close {
+      background: none; border: none; cursor: pointer;
+      font-size: 18px; color: var(--muted-fg); padding: 0;
+    }
+    #branch-modal .bm-body {
+      padding: 16px 20px;
+    }
+    #branch-modal .bm-hint {
+      font-size: 12px;
+      color: var(--muted-fg);
+      margin-bottom: 10px;
+      line-height: 1.5;
+    }
+    #branch-modal .bm-body textarea {
+      width: 100%;
+      background: var(--background);
+      color: var(--foreground);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 10px 12px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 80px;
+      box-sizing: border-box;
+    }
+    #branch-modal .bm-body textarea:focus {
+      outline: none;
+      border-color: var(--ring);
+      box-shadow: 0 0 0 2px rgba(75,122,82,0.15);
+    }
+    #branch-modal .bm-footer {
+      padding: 12px 20px 16px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      border-top: 1px solid var(--border);
+    }
+    .bm-cancel-btn {
+      background: var(--muted);
+      color: var(--foreground);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 7px 16px;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .bm-confirm-btn {
+      background: var(--primary);
+      color: var(--primary-fg);
+      border: none;
+      border-radius: var(--radius-lg);
+      padding: 7px 16px;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .bm-confirm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ===== トースト通知 ===== */
+    #toast {
+      display: none;
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--foreground);
+      color: var(--primary-fg);
+      padding: 8px 16px;
+      border-radius: var(--radius-full);
+      font-size: 13px;
+      z-index: 300;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    #toast.visible { display: block; }
+
     .typing { opacity: 0.8; }
     .typing::after {
       content: '▊';
@@ -1066,6 +1279,14 @@
 
     <div id="messages"></div>
 
+    <div id="paste-banner">
+      <span>📋 引用をクリップボードに保持中</span>
+      <button id="paste-apply-btn">この会話に貼り付け</button>
+      <button id="paste-discard-btn" title="破棄">✕</button>
+    </div>
+
+    <div id="citation-area"></div>
+
     <div id="input-area">
       <textarea id="input" placeholder="メッセージを入力... (Enter で送信)" rows="1"></textarea>
       <button id="send" disabled>送信</button>
@@ -1120,6 +1341,27 @@
 
   </div>
 
+  <!-- ===== 分岐モーダル ===== -->
+  <div id="branch-modal-overlay">
+    <div id="branch-modal">
+      <div class="bm-header">
+        <h3>⑂ セッションを分岐</h3>
+        <button class="bm-close" id="branch-modal-close">✕</button>
+      </div>
+      <div class="bm-body">
+        <p class="bm-hint">この返答の時点から新しいセッションを開始します。以降の会話は元のセッションに影響しません。</p>
+        <textarea id="branch-input" placeholder="分岐後の最初のメッセージを入力..."></textarea>
+      </div>
+      <div class="bm-footer">
+        <button class="bm-cancel-btn" id="branch-cancel-btn">キャンセル</button>
+        <button class="bm-confirm-btn" id="branch-confirm-btn">分岐して開始</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- トースト -->
+  <div id="toast"></div>
+
   <!-- ===== プロファイル管理モーダル ===== -->
   <div id="profile-modal-overlay">
     <div id="profile-modal">
@@ -1154,6 +1396,13 @@
     let firstUserMessage = null; // 現セッションの最初のユーザーメッセージ（タイトル生成用）
     let manualDisconnect = false; // セッション切り替え時の自動再接続を抑制
     let suppressConnectMsg = false; // 過去セッション復元時の接続メッセージを抑制
+
+    // ===== 引用・分岐 状態管理 =====
+    let pendingContextIds = [];   // [{ entityId, content }]
+    let pendingPaste = null;      // { entityId, content } — 別セッションに貼り付け待ち
+    let branchEntityId = null;    // 分岐モーダル用 entity_id
+    let lastUserWrapper = null;   // entity_recorded 受信時に entity_id を付与するための参照
+    let lastAgentWrapper = null;  // 同上
 
     // --- セッション ID 管理 ---
     const STORAGE_KEY = 'crucible_session_id';
@@ -1261,12 +1510,14 @@
       for (const item of items) {
         if (item.type === 'agent_run') {
           if (item.input?.message) {
-            addMsg(item.input.message, 'user');
+            const userEl = addMsg(item.input.message, 'user');
+            if (item.user_entity_id) userEl._wrapper.dataset.entityId = item.user_entity_id;
           }
           if (item.output?.response) {
-            const el = addMsg('', 'agent');
-            el._rawText = item.output.response;
-            el.innerHTML = renderMarkdown(item.output.response);
+            const agentEl = addMsg('', 'agent');
+            agentEl._rawText = item.output.response;
+            agentEl.innerHTML = renderMarkdown(item.output.response);
+            if (item.response_entity_id) agentEl._wrapper.dataset.entityId = item.response_entity_id;
           }
         }
       }
@@ -1410,12 +1661,21 @@
         case 'text_delta':
           if (!currentAgentMsg) {
             currentAgentMsg = addMsg('', 'agent');
+            lastAgentWrapper = currentAgentMsg._wrapper;
             currentAgentMsg.classList.add('typing');
             currentAgentMsg._rawText = '';
           }
           currentAgentMsg._rawText += data.content;
           currentAgentMsg.innerHTML = renderMarkdown(currentAgentMsg._rawText);
           scrollToBottom();
+          break;
+        case 'entity_recorded':
+          if (data.user_entity_id && lastUserWrapper) {
+            lastUserWrapper.dataset.entityId = data.user_entity_id;
+          }
+          if (data.response_entity_id && lastAgentWrapper) {
+            lastAgentWrapper.dataset.entityId = data.response_entity_id;
+          }
           break;
         case 'approval_request':
           addApprovalMsg(data.tool_call_id, data.tool_name, data.input, data.content);
@@ -1462,7 +1722,10 @@
       // 現セッションの最初のメッセージを記録（タイトル生成用）
       if (!firstUserMessage) firstUserMessage = text;
 
-      addMsg(text, 'user');
+      const userEl = addMsg(text, 'user');
+      lastUserWrapper = userEl._wrapper;
+      lastAgentWrapper = null;
+
       const payload = { type: 'message', content: text };
       if (profileEl.value) payload.profile = profileEl.value;
       if (customInstrEl.value.trim()) payload.custom_instructions = customInstrEl.value.trim();
@@ -1471,6 +1734,11 @@
         payload.server_names = enabled;
       }
       if (planMode) payload.require_approval = true;
+      // 引用中の entity_id を payload に含める
+      if (pendingContextIds.length > 0) {
+        payload.context_ids = pendingContextIds.map(c => c.entityId);
+        clearCitationCards();
+      }
       ws.send(JSON.stringify(payload));
 
       inputEl.value = '';
@@ -1483,12 +1751,59 @@
 
     // --- DOM ヘルパー ---
     function addMsg(text, cls) {
+      const wrapper = document.createElement('div');
+      wrapper.className = `msg-wrapper msg-wrapper-${cls}`;
+
       const el = document.createElement('div');
       el.className = `msg ${cls}`;
       el.textContent = text;
-      messagesEl.appendChild(el);
+      el._wrapper = wrapper;
+      wrapper.appendChild(el);
+
+      if (cls === 'user' || cls === 'agent') {
+        const actions = document.createElement('div');
+        actions.className = 'msg-actions';
+        if (cls === 'agent') {
+          actions.innerHTML =
+            `<button class="msg-action-btn" data-action="quote" title="新規セッションに引用">📝</button>` +
+            `<button class="msg-action-btn" data-action="copy" title="既存セッションにコピー">📋</button>` +
+            `<button class="msg-action-btn" data-action="branch" title="ここから分岐">⑂</button>`;
+        } else {
+          actions.innerHTML =
+            `<button class="msg-action-btn" data-action="quote" title="新規セッションに引用">📝</button>` +
+            `<button class="msg-action-btn" data-action="copy" title="既存セッションにコピー">📋</button>`;
+        }
+        wrapper.appendChild(actions);
+
+        wrapper.addEventListener('mouseenter', () => {
+          if (wrapper.dataset.entityId) actions.style.display = 'flex';
+        });
+        wrapper.addEventListener('mouseleave', () => {
+          actions.style.display = 'none';
+        });
+
+        actions.querySelectorAll('.msg-action-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const entityId = wrapper.dataset.entityId;
+            if (!entityId) return;
+            const content = el._rawText || el.textContent;
+            const action = btn.dataset.action;
+            if (action === 'quote') quoteToNewSession(entityId, content);
+            else if (action === 'copy') copyEntityRef(entityId, content);
+            else if (action === 'branch') openBranchModal(entityId);
+          });
+        });
+      }
+
+      messagesEl.appendChild(wrapper);
       scrollToBottom();
       return el;
+    }
+
+    function setMsgEntityId(el, entityId) {
+      if (el && el._wrapper && entityId) {
+        el._wrapper.dataset.entityId = entityId;
+      }
     }
 
     let currentToolDetails = null;
@@ -1834,6 +2149,143 @@
         }
       });
     }
+
+    // ===== 引用・コピー・分岐 =====
+    const citationAreaEl = document.getElementById('citation-area');
+    const pasteBannerEl = document.getElementById('paste-banner');
+    const pasteApplyBtn = document.getElementById('paste-apply-btn');
+    const pasteDiscardBtn = document.getElementById('paste-discard-btn');
+    const branchModalOverlay = document.getElementById('branch-modal-overlay');
+    const branchInputEl = document.getElementById('branch-input');
+    const branchConfirmBtn = document.getElementById('branch-confirm-btn');
+    const branchCancelBtn = document.getElementById('branch-cancel-btn');
+    const branchModalClose = document.getElementById('branch-modal-close');
+    const toastEl = document.getElementById('toast');
+    let toastTimer = null;
+
+    function showToast(msg, duration = 2200) {
+      toastEl.textContent = msg;
+      toastEl.classList.add('visible');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toastEl.classList.remove('visible'), duration);
+    }
+
+    // --- 引用カード管理 ---
+    function addCitationCard(entityId, content) {
+      if (pendingContextIds.some(c => c.entityId === entityId)) return;
+      pendingContextIds.push({ entityId, content });
+      const card = document.createElement('div');
+      card.className = 'citation-card';
+      card.dataset.entityId = entityId;
+      card.innerHTML =
+        `<span class="citation-card-icon">📎</span>` +
+        `<span class="citation-card-preview">${escapeHtml((content || '').slice(0, 60))}</span>` +
+        `<button class="citation-card-remove" title="削除">✕</button>`;
+      card.querySelector('.citation-card-remove').addEventListener('click', () => {
+        removeCitationCard(entityId);
+      });
+      citationAreaEl.appendChild(card);
+      citationAreaEl.classList.add('has-cards');
+    }
+
+    function removeCitationCard(entityId) {
+      pendingContextIds = pendingContextIds.filter(c => c.entityId !== entityId);
+      const card = citationAreaEl.querySelector(`[data-entity-id="${CSS.escape(entityId)}"]`);
+      if (card) card.remove();
+      if (pendingContextIds.length === 0) citationAreaEl.classList.remove('has-cards');
+    }
+
+    function clearCitationCards() {
+      pendingContextIds = [];
+      citationAreaEl.innerHTML = '';
+      citationAreaEl.classList.remove('has-cards');
+    }
+
+    // --- 新規セッションに引用 ---
+    function quoteToNewSession(entityId, content) {
+      newSession();
+      // 新セッション接続後に引用カードを追加
+      setTimeout(() => addCitationCard(entityId, content), 400);
+      showToast('📝 新しいセッションを開始しました。引用を追加しました。');
+    }
+
+    // --- 既存セッションにコピー ---
+    function copyEntityRef(entityId, content) {
+      pendingPaste = { entityId, content };
+      pasteBannerEl.classList.add('visible');
+      showToast('📋 コピーしました。別のセッションに移動して「貼り付け」できます。');
+    }
+
+    pasteApplyBtn.addEventListener('click', () => {
+      if (pendingPaste) {
+        addCitationCard(pendingPaste.entityId, pendingPaste.content);
+        pendingPaste = null;
+        pasteBannerEl.classList.remove('visible');
+        showToast('📎 引用を追加しました。');
+      }
+    });
+
+    pasteDiscardBtn.addEventListener('click', () => {
+      pendingPaste = null;
+      pasteBannerEl.classList.remove('visible');
+    });
+
+    // --- 分岐モーダル ---
+    function openBranchModal(entityId) {
+      branchEntityId = entityId;
+      branchInputEl.value = '';
+      branchModalOverlay.classList.add('open');
+      setTimeout(() => branchInputEl.focus(), 100);
+    }
+
+    function closeBranchModal() {
+      branchModalOverlay.classList.remove('open');
+      branchEntityId = null;
+    }
+
+    branchModalClose.addEventListener('click', closeBranchModal);
+    branchCancelBtn.addEventListener('click', closeBranchModal);
+    branchModalOverlay.addEventListener('click', (e) => {
+      if (e.target === branchModalOverlay) closeBranchModal();
+    });
+
+    branchConfirmBtn.addEventListener('click', async () => {
+      const msg = branchInputEl.value.trim();
+      if (!msg || !branchEntityId) return;
+
+      branchConfirmBtn.disabled = true;
+      branchConfirmBtn.textContent = '分岐中...';
+
+      try {
+        const parentSessionId = wsSessionId;
+        const resp = await fetch(`/sessions/${parentSessionId}/branch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            branch_from_entity_id: branchEntityId,
+            message: msg,
+          }),
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        closeBranchModal();
+        // 新セッションに切り替え（分岐結果を表示）
+        await switchSession(data.session_id);
+        // 分岐応答を表示
+        if (data.message) {
+          const agentEl = addMsg('', 'agent');
+          agentEl._rawText = data.message;
+          agentEl.innerHTML = renderMarkdown(data.message);
+          if (data.provenance_id) agentEl._wrapper.dataset.entityId = data.provenance_id;
+        }
+        showToast('⑂ セッションを分岐しました。');
+      } catch (err) {
+        showToast('分岐に失敗しました: ' + err.message);
+      } finally {
+        branchConfirmBtn.disabled = false;
+        branchConfirmBtn.textContent = '分岐して開始';
+      }
+    });
 
     // --- イベント ---
     inputEl.addEventListener('input', () => {
