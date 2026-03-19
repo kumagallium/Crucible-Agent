@@ -399,7 +399,6 @@ async def agent_ws(websocket: WebSocket, session_id: str | None = None) -> None:
                 require_approval = msg.get("require_approval", False)
                 context_ids: list[str] = msg.get("context_ids") or []
                 edit_from_entity_id: str | None = msg.get("edit_from_entity_id")
-                logger.info("WS raw msg keys=%s, edit_from=%r, content=%s", list(msg.keys()), edit_from_entity_id, content[:30] if content else "")
 
                 # 編集モード: 指定 Entity 時点までの履歴のみ使用
                 conversation_history: list[dict] | None = None
