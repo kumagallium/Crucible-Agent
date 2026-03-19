@@ -1792,6 +1792,7 @@
       localStorage.setItem(STORAGE_KEY, wsSessionId);
       firstUserMessage = null;
       messagesEl.innerHTML = '';
+      hideGraph();
       manualDisconnect = true;
       if (ws) ws.close();
       connect();
@@ -2823,11 +2824,15 @@
           }
         }
 
-        // ブランチレベル計算（編集ごとにレベルを上げ、横にオフセット）
+        // ブランチレベル計算（wasRevisionOf のリレーションから構築）
+        const revisionNewIds = new Set();
+        for (const e of data.edges) {
+          if (e.relation === 'wasRevisionOf') revisionNewIds.add(e.source);
+        }
         const entityBranch = {};
         let currentBranch = 0;
         for (const e of entities) {
-          if (revisionTargets.has(e.id)) currentBranch++;
+          if (revisionNewIds.has(e.id)) currentBranch++;
           entityBranch[e.id] = currentBranch;
         }
 
