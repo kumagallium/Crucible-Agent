@@ -140,6 +140,26 @@
       margin-top: 1px;
     }
 
+    .session-item .si-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .session-item .si-title { flex: 1; min-width: 0; }
+    .session-item .si-delete {
+      display: none;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--muted-fg);
+      font-size: 14px;
+      padding: 0 2px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .session-item .si-delete:hover { color: #e55; }
+    .session-item:hover .si-delete { display: block; }
+
     /* ===== 中: メインエリア ===== */
     #main {
       flex: 1;
@@ -1620,16 +1640,50 @@
           const title = getSessionTitle(s.session_id) || s.session_id.slice(0, 8);
           const time = s.last_at ? formatTimeAgo(new Date(s.last_at)) : '';
           html += `<div class="session-item${isCurrent ? ' active' : ''}" data-sid="${escapeHtml(s.session_id)}">
-            <div class="si-title">${escapeHtml(title)}</div>
+            <div class="si-row">
+              <div class="si-title">${escapeHtml(title)}</div>
+              <button class="si-delete" data-delete-sid="${escapeHtml(s.session_id)}" title="削除">×</button>
+            </div>
             <div class="si-time">${escapeHtml(time)}</div>
           </div>`;
         }
         sessionListEl.innerHTML = html;
         sessionListEl.querySelectorAll('.session-item[data-sid]').forEach(el => {
-          el.addEventListener('click', () => switchSession(el.dataset.sid));
+          el.addEventListener('click', (e) => {
+            if (e.target.closest('.si-delete')) return;
+            switchSession(el.dataset.sid);
+          });
+        });
+        sessionListEl.querySelectorAll('.si-delete[data-delete-sid]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteSession(btn.dataset.deleteSid);
+          });
         });
       } catch {
         sessionListEl.innerHTML = '<div class="session-empty">取得失敗</div>';
+      }
+    }
+
+    // --- セッション削除 ---
+    async function deleteSession(sid) {
+      if (!confirm('このチャット履歴を削除しますか？')) return;
+      try {
+        const resp = await fetch(`/provenance/${sid}`, { method: 'DELETE' });
+        if (!resp.ok && resp.status !== 204) throw new Error(`HTTP ${resp.status}`);
+        // localStorage のタイトルも削除
+        try {
+          const titles = JSON.parse(localStorage.getItem(TITLE_KEY) || '{}');
+          delete titles[sid];
+          localStorage.setItem(TITLE_KEY, JSON.stringify(titles));
+        } catch {}
+        // 現在表示中のセッションを削除した場合は新規セッションに切り替え
+        if (sid === wsSessionId) {
+          newSession();
+        }
+        loadSessionList();
+      } catch {
+        showToast('削除に失敗しました');
       }
     }
 

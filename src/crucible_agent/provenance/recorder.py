@@ -266,11 +266,127 @@ async def list_sessions() -> list[dict]:
         ]
 
 
+async def delete_session(session_id: str) -> bool:
+    """セッションに関連する来歴データをすべて削除する"""
+    from sqlalchemy import delete, select
+
+    async with _session_factory() as db:
+        # セッションに属する Activity ID を取得
+        act_result = await db.execute(
+            select(ProvenanceActivity.id).where(
+                ProvenanceActivity.session_id == session_id
+            )
+        )
+        activity_ids = [r[0] for r in act_result.all()]
+
+        # セッションに属する Entity ID を取得
+        ent_result = await db.execute(
+            select(ProvenanceEntity.id).where(
+                ProvenanceEntity.session_id == session_id
+            )
+        )
+        entity_ids = [r[0] for r in ent_result.all()]
+
+        if not activity_ids and not entity_ids:
+            return False
+
+        # 関連テーブルを先に削除（FK 制約対応）
+        if entity_ids:
+            await db.execute(
+                delete(ProvenanceDerivation).where(
+                    ProvenanceDerivation.derived_entity_id.in_(entity_ids)
+                    | ProvenanceDerivation.source_entity_id.in_(entity_ids)
+                )
+            )
+        if activity_ids:
+            await db.execute(
+                delete(ProvenanceUsage).where(
+                    ProvenanceUsage.activity_id.in_(activity_ids)
+                )
+            )
+        if entity_ids:
+            await db.execute(
+                delete(ProvenanceEntity).where(
+                    ProvenanceEntity.session_id == session_id
+                )
+            )
+        await db.execute(
+            delete(ProvenanceActivity).where(
+                ProvenanceActivity.session_id == session_id
+            )
+        )
+
+        await db.commit()
+        logger.info("Session deleted: %s", session_id)
+        return True
+
+
 async def get_conversation_history(session_id: str) -> list[dict]:
-    """セッションの会話履歴を LLM messages 形式で返す（履歴復元用）"""
+    """セッションの現在ブランチの会話履歴を LLM messages 形式で返す
+
+    used(role="context") チェーンを逆に辿り、現在アクティブなブランチの
+    履歴のみを返す。ブランチが存在しない古いデータの場合は時系列順でフォールバック。
+    """
     from sqlalchemy import select
 
     async with _session_factory() as db:
+        # 最新の Activity（= 現在ブランチの末端）を取得
+        latest_result = await db.execute(
+            select(ProvenanceActivity)
+            .where(ProvenanceActivity.session_id == session_id)
+            .where(ProvenanceActivity.type == "agent_run")
+            .order_by(ProvenanceActivity.started_at.desc())
+            .limit(1)
+        )
+        latest_activity = latest_result.scalar_one_or_none()
+        if not latest_activity:
+            return []
+
+        # used(role="context") チェーンを辿って Activity の順序を構築
+        chain: list[ProvenanceActivity] = [latest_activity]
+        current_activity = latest_activity
+        max_depth = 100  # 無限ループ防止
+
+        for _ in range(max_depth):
+            # この Activity が context として使った Entity を探す
+            ctx_result = await db.execute(
+                select(ProvenanceUsage)
+                .where(ProvenanceUsage.activity_id == current_activity.id)
+                .where(ProvenanceUsage.role == "context")
+                .limit(1)
+            )
+            ctx_usage = ctx_result.scalar_one_or_none()
+            if not ctx_usage:
+                break  # チェーンの先頭（context なし = 最初のターン）
+
+            # その Entity を生成した Activity を探す
+            ctx_entity = await db.get(ProvenanceEntity, ctx_usage.entity_id)
+            if not ctx_entity or not ctx_entity.generated_by:
+                break
+
+            prev_activity = await db.get(
+                ProvenanceActivity, ctx_entity.generated_by
+            )
+            if not prev_activity:
+                break
+
+            chain.append(prev_activity)
+            current_activity = prev_activity
+
+        # チェーンが構築できた場合（context エッジがある）
+        if len(chain) > 1:
+            chain.reverse()  # 古い順に並べ替え
+            messages = []
+            for a in chain:
+                user_msg = (a.input_data or {}).get("message", "")
+                agent_resp = (a.output_data or {}).get("response", "")
+                if user_msg:
+                    messages.append({"role": "user", "content": user_msg})
+                if agent_resp:
+                    messages.append({"role": "assistant", "content": agent_resp})
+            return messages
+
+        # フォールバック: context エッジがない古いデータ → 全 Activity を時系列順
         result = await db.execute(
             select(ProvenanceActivity)
             .where(ProvenanceActivity.session_id == session_id)
@@ -532,25 +648,73 @@ async def get_conversation_history_until(
     session_id: str,
     until_entity_id: str,
 ) -> list[dict]:
-    """セッションの会話履歴を指定 Entity まで取得する（ブランチ用）
+    """指定 Entity のブランチの会話履歴を取得する（編集用）
 
-    until_entity_id の agent_response が属する agent_run までを含める。
+    until_entity_id を入力として使った Activity から
+    used(role="context") チェーンを辿り、そのブランチの履歴を返す。
+    チェーンがない古いデータは時系列フォールバック。
     """
     from sqlalchemy import select
 
     async with _session_factory() as db:
-        # until_entity_id が含まれる Activity を特定
-        entity_result = await db.execute(
-            select(ProvenanceEntity).where(ProvenanceEntity.id == until_entity_id)
+        # until_entity_id を入力として使った Activity を特定
+        usage_result = await db.execute(
+            select(ProvenanceUsage)
+            .where(ProvenanceUsage.entity_id == until_entity_id)
+            .where(ProvenanceUsage.role == "input")
+            .limit(1)
         )
-        entity = entity_result.scalar_one_or_none()
-        if entity is None:
+        usage = usage_result.scalar_one_or_none()
+        if not usage:
             return []
 
-        # entity.generated_by が分岐点の activity_id
-        branch_activity_id = entity.generated_by
+        target_activity = await db.get(ProvenanceActivity, usage.activity_id)
+        if not target_activity:
+            return []
 
-        # 全 agent_run を時系列で取得
+        # target_activity から used(role="context") チェーンを辿る
+        chain: list[ProvenanceActivity] = [target_activity]
+        current = target_activity
+        max_depth = 100
+
+        for _ in range(max_depth):
+            ctx_result = await db.execute(
+                select(ProvenanceUsage)
+                .where(ProvenanceUsage.activity_id == current.id)
+                .where(ProvenanceUsage.role == "context")
+                .limit(1)
+            )
+            ctx_usage = ctx_result.scalar_one_or_none()
+            if not ctx_usage:
+                break
+
+            ctx_entity = await db.get(ProvenanceEntity, ctx_usage.entity_id)
+            if not ctx_entity or not ctx_entity.generated_by:
+                break
+
+            prev_activity = await db.get(
+                ProvenanceActivity, ctx_entity.generated_by
+            )
+            if not prev_activity:
+                break
+
+            chain.append(prev_activity)
+            current = prev_activity
+
+        # チェーンが構築できた場合
+        if len(chain) > 1:
+            chain.reverse()
+            messages = []
+            for a in chain:
+                user_msg = (a.input_data or {}).get("message", "")
+                agent_resp = (a.output_data or {}).get("response", "")
+                if user_msg:
+                    messages.append({"role": "user", "content": user_msg})
+                if agent_resp:
+                    messages.append({"role": "assistant", "content": agent_resp})
+            return messages
+
+        # フォールバック: context エッジなし → 時系列で target_activity まで
         activities_result = await db.execute(
             select(ProvenanceActivity)
             .where(ProvenanceActivity.session_id == session_id)
@@ -558,7 +722,6 @@ async def get_conversation_history_until(
             .order_by(ProvenanceActivity.started_at)
         )
         activities = activities_result.scalars().all()
-
         messages = []
         for a in activities:
             user_msg = (a.input_data or {}).get("message", "")
@@ -567,8 +730,7 @@ async def get_conversation_history_until(
                 messages.append({"role": "user", "content": user_msg})
             if agent_resp:
                 messages.append({"role": "assistant", "content": agent_resp})
-            # 分岐点の Activity まで到達したら終了
-            if a.id == branch_activity_id:
+            if a.id == target_activity.id:
                 break
 
         return messages

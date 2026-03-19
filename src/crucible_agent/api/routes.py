@@ -41,6 +41,7 @@ from crucible_agent.profiles.repository import (
     update_profile,
 )
 from crucible_agent.provenance.recorder import (
+    delete_session,
     get_conversation_history_until,
     get_entity,
     get_provenance_graph,
@@ -330,6 +331,14 @@ async def provenance_sessions() -> list[dict]:
 async def provenance_detail(session_id: str) -> list[dict]:
     """セッションの来歴（PROV-DM Activity チェーン）を返す"""
     return await get_session_history(session_id)
+
+
+@router.delete("/provenance/{session_id}", status_code=204)
+async def provenance_delete(session_id: str) -> None:
+    """セッションの来歴データをすべて削除する"""
+    deleted = await delete_session(session_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Session not found")
 
 
 @router.get("/provenance/{session_id}/graph", response_model=GraphResponse)
