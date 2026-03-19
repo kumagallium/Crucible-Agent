@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -36,6 +37,9 @@ app = FastAPI(
     version=__version__,
     lifespan=lifespan,
 )
+
+# gzip 圧縮: 500バイト以上のレスポンスを自動圧縮（モバイル回線の高速化）
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 app.include_router(router)
 

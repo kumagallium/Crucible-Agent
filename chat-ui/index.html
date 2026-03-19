@@ -5,8 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Crucible Agent</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-  <script src="https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet"></noscript>
+  <!-- Cytoscape.js: グラフ表示時に動的ロード（初期表示を高速化） -->
   <style>
     :root {
       /* Crucible Design System */
@@ -1576,7 +1578,10 @@
 
     <!-- モデル選択 -->
     <div class="rp-section">
-      <div class="rp-title">Model</div>
+      <div class="profile-title-row">
+        <div class="rp-title">Model</div>
+        <button id="model-manage-btn" class="profile-manage-btn">管理</button>
+      </div>
       <div class="rp-body">
         <select id="model-select">
           <option value="">読み込み中...</option>
@@ -2975,12 +2980,27 @@
       return 'round-rectangle';
     }
 
+    // Cytoscape.js を初回グラフ表示時に動的ロード
+    let cytoscapeLoaded = (typeof cytoscape !== 'undefined');
+    async function loadCytoscape() {
+      if (cytoscapeLoaded) return;
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/cytoscape@3.30.4/dist/cytoscape.min.js';
+        s.onload = resolve;
+        s.onerror = () => reject(new Error('Cytoscape.js の読み込みに失敗しました'));
+        document.head.appendChild(s);
+      });
+      cytoscapeLoaded = true;
+    }
+
     async function showGraph() {
       if (!wsSessionId) return;
       graphPanel.classList.add('open');
       chatContent.classList.add('hidden');
 
       try {
+        await loadCytoscape();
         const resp = await fetch(`/provenance/${wsSessionId}/graph`);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
