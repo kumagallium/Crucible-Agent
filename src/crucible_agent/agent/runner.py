@@ -130,7 +130,6 @@ async def run_agent_stream(
     context_prefix = await _build_context_prefix(context_ids or [])
     if context_prefix:
         message = context_prefix + message
-        logger.info("Context IDs injected into message: %s", context_ids)
 
     server_names, discovered = await _resolve_servers(server_names)
 
