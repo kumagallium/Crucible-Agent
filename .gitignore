@@ -24,6 +24,9 @@ src/crucible_agent/prompts/templates/
 # 内部設計ドキュメント（非公開）
 docs/internal/
 
+# Claude Code 設定（非公開）
+CLAUDE.md
+
 # IDE
 .vscode/
 .idea/
