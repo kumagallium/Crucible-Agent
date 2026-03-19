@@ -58,6 +58,39 @@ class AgentRunResponse(BaseModel):
     token_usage: TokenUsage = Field(default_factory=TokenUsage)
 
 
+# --- GET /provenance/graph ---
+
+
+class GraphNode(BaseModel):
+    """来歴グラフのノード（Entity / Activity / Agent）"""
+
+    id: str
+    node_type: str  # "entity", "activity", "agent"
+    prov_type: str  # "agent_response", "agent_run", "llm" など
+    label: str
+    session_id: str | None = None
+    created_at: str | None = None
+    # Agent ノード用
+    provider: str | None = None
+    model_id: str | None = None
+
+
+class GraphEdge(BaseModel):
+    """来歴グラフのエッジ（PROV-DM 関係）"""
+
+    source: str
+    target: str
+    relation: str  # "wasGeneratedBy", "used", "wasAssociatedWith", "wasInfluencedBy" など
+    role: str | None = None  # prov_usage の role
+
+
+class GraphResponse(BaseModel):
+    """GET /provenance/graph レスポンス"""
+
+    nodes: list[GraphNode] = Field(default_factory=list)
+    edges: list[GraphEdge] = Field(default_factory=list)
+
+
 # --- /profiles CRUD ---
 
 

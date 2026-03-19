@@ -236,6 +236,145 @@ async def get_session_history(session_id: str) -> list[dict]:
         ]
 
 
+async def get_provenance_graph(session_id: str) -> dict:
+    """セッションの来歴をグラフ形式（ノード + エッジ）で返す
+
+    クロスセッションの derivation エッジも含む。
+    """
+    from sqlalchemy import or_, select
+
+    nodes: list[dict] = []
+    edges: list[dict] = []
+    seen_node_ids: set[str] = set()
+
+    def _add_node(node: dict) -> None:
+        if node["id"] not in seen_node_ids:
+            seen_node_ids.add(node["id"])
+            nodes.append(node)
+
+    async with _session_factory() as db:
+        # --- Activities ---
+        act_result = await db.execute(
+            select(ProvenanceActivity)
+            .where(ProvenanceActivity.session_id == session_id)
+            .order_by(ProvenanceActivity.started_at)
+        )
+        activities = act_result.scalars().all()
+        agent_ids = {a.agent_id for a in activities if a.agent_id}
+
+        for a in activities:
+            label = a.tool_name if a.type == "tool_use" else a.type
+            _add_node({
+                "id": a.id,
+                "node_type": "activity",
+                "prov_type": a.type,
+                "label": label or a.type,
+                "session_id": a.session_id,
+                "created_at": a.started_at.isoformat() if a.started_at else None,
+            })
+            # wasAssociatedWith: Activity → Agent
+            if a.agent_id:
+                edges.append({
+                    "source": a.id,
+                    "target": a.agent_id,
+                    "relation": "wasAssociatedWith",
+                })
+
+        # --- Agents ---
+        if agent_ids:
+            agent_result = await db.execute(
+                select(ProvenanceAgent).where(ProvenanceAgent.id.in_(agent_ids))
+            )
+            for ag in agent_result.scalars().all():
+                _add_node({
+                    "id": ag.id,
+                    "node_type": "agent",
+                    "prov_type": ag.type,
+                    "label": ag.model_id or ag.name,
+                    "session_id": None,
+                    "created_at": ag.created_at.isoformat() if ag.created_at else None,
+                    "provider": ag.provider,
+                    "model_id": ag.model_id,
+                })
+
+        # --- Entities (このセッション) ---
+        entity_result = await db.execute(
+            select(ProvenanceEntity)
+            .where(ProvenanceEntity.session_id == session_id)
+            .order_by(ProvenanceEntity.created_at)
+        )
+        entities = entity_result.scalars().all()
+        entity_ids = {e.id for e in entities}
+
+        for e in entities:
+            _add_node({
+                "id": e.id,
+                "node_type": "entity",
+                "prov_type": e.type,
+                "label": (e.content or "")[:40] + ("..." if len(e.content or "") > 40 else ""),
+                "session_id": e.session_id,
+                "created_at": e.created_at.isoformat() if e.created_at else None,
+            })
+            # wasGeneratedBy: Entity → Activity
+            if e.generated_by:
+                edges.append({
+                    "source": e.id,
+                    "target": e.generated_by,
+                    "relation": "wasGeneratedBy",
+                })
+
+        # --- prov_usage (used) ---
+        activity_ids = {a.id for a in activities}
+        if activity_ids:
+            usage_result = await db.execute(
+                select(ProvenanceUsage)
+                .where(ProvenanceUsage.activity_id.in_(activity_ids))
+            )
+            for u in usage_result.scalars().all():
+                edges.append({
+                    "source": u.activity_id,
+                    "target": u.entity_id,
+                    "relation": "used",
+                    "role": u.role,
+                })
+
+        # --- prov_derivations (セッション内 + クロスセッション) ---
+        deriv_result = await db.execute(
+            select(ProvenanceDerivation)
+            .where(
+                or_(
+                    ProvenanceDerivation.derived_entity_id.in_(entity_ids),
+                    ProvenanceDerivation.source_entity_id.in_(entity_ids),
+                )
+            )
+        )
+        for d in deriv_result.scalars().all():
+            # source が別セッションなら stub ノードとして追加
+            if d.source_entity_id not in entity_ids:
+                src_entity = await db.get(ProvenanceEntity, d.source_entity_id)
+                if src_entity:
+                    _add_node({
+                        "id": src_entity.id,
+                        "node_type": "entity",
+                        "prov_type": src_entity.type,
+                        "label": (
+                            (src_entity.content or "")[:40]
+                            + ("..." if len(src_entity.content or "") > 40 else "")
+                        ),
+                        "session_id": src_entity.session_id,
+                        "created_at": (
+                            src_entity.created_at.isoformat() if src_entity.created_at else None
+                        ),
+                    })
+            edges.append({
+                "source": d.derived_entity_id,
+                "target": d.source_entity_id,
+                "relation": d.relation_type,
+            })
+
+    return {"nodes": nodes, "edges": edges}
+
+
 async def get_entity(entity_id: str) -> ProvenanceEntity | None:
     """Entity を ID で取得する（引用カード描画用）"""
     from sqlalchemy import select
