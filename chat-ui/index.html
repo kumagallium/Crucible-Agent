@@ -6,6 +6,7 @@
   <title>Crucible Agent</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <style>
     :root {
       /* Crucible Design System */
@@ -363,14 +364,41 @@
       background: none;
       border: none;
       cursor: pointer;
-      font-size: 13px;
-      padding: 2px 5px;
+      padding: 4px 5px;
       border-radius: 4px;
-      opacity: 0.65;
-      transition: opacity 0.15s, background 0.15s;
-      title: attr(title);
+      color: var(--muted-fg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.15s, background 0.15s;
+      position: relative;
     }
-    .msg-action-btn:hover { opacity: 1; background: var(--muted); }
+    .msg-action-btn svg { width: 14px; height: 14px; stroke-width: 1.75; }
+    .msg-action-btn:hover { color: var(--foreground); background: var(--muted); }
+
+    /* カスタムツールチップ */
+    .msg-action-btn::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: calc(100% + 5px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--foreground);
+      color: #fff;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.12s;
+      transition-delay: 0s;
+      z-index: 100;
+    }
+    .msg-action-btn:hover::after {
+      opacity: 1;
+      transition-delay: 0.2s;
+    }
 
     /* ===== 引用カードエリア ===== */
     #citation-area {
@@ -1765,14 +1793,15 @@
         actions.className = 'msg-actions';
         if (cls === 'agent') {
           actions.innerHTML =
-            `<button class="msg-action-btn" data-action="quote" title="新規セッションに引用">📝</button>` +
-            `<button class="msg-action-btn" data-action="copy" title="既存セッションにコピー">📋</button>` +
-            `<button class="msg-action-btn" data-action="branch" title="ここから分岐">⑂</button>`;
+            `<button class="msg-action-btn" data-action="quote" data-tooltip="新規セッションに引用"><i data-lucide="message-square-plus"></i></button>` +
+            `<button class="msg-action-btn" data-action="copy" data-tooltip="別セッションにコピー"><i data-lucide="copy"></i></button>` +
+            `<button class="msg-action-btn" data-action="branch" data-tooltip="ここから分岐"><i data-lucide="git-branch"></i></button>`;
         } else {
           actions.innerHTML =
-            `<button class="msg-action-btn" data-action="quote" title="新規セッションに引用">📝</button>` +
-            `<button class="msg-action-btn" data-action="copy" title="既存セッションにコピー">📋</button>`;
+            `<button class="msg-action-btn" data-action="quote" data-tooltip="新規セッションに引用"><i data-lucide="message-square-plus"></i></button>` +
+            `<button class="msg-action-btn" data-action="copy" data-tooltip="別セッションにコピー"><i data-lucide="copy"></i></button>`;
         }
+        lucide.createIcons({ el: actions });
         wrapper.appendChild(actions);
 
         wrapper.addEventListener('mouseenter', () => {
