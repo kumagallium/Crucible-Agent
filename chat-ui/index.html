@@ -1722,7 +1722,7 @@
     let planMode = false;
     let firstUserMessage = null; // 現セッションの最初のユーザーメッセージ（タイトル生成用）
     let manualDisconnect = false; // セッション切り替え時の自動再接続を抑制
-    let suppressConnectMsg = false; // 過去セッション復元時の接続メッセージを抑制
+
     let initialLoad = true; // 初回ロード時のチャット履歴復元フラグ
 
     // ===== Lucide SVG アイコン（インライン） =====
@@ -1936,8 +1936,7 @@
         await loadSessionMessages(sid);
       } catch {}
 
-      // WS 再接続（接続メッセージは抑制）
-      suppressConnectMsg = true;
+      // WS 再接続
       manualDisconnect = true;
       if (ws) ws.close();
       connect();
@@ -2211,10 +2210,7 @@
         sendBtn.disabled = false;
         sessionDisplay.textContent = wsSessionId.slice(0, 8);
         sessionDisplay.dataset.sessionId = wsSessionId;
-        if (!suppressConnectMsg) {
-          addSystemMsg('エージェントに接続しました');
-        }
-        suppressConnectMsg = false;
+
         // 初回ロード時に現セッションのチャット履歴を復元
         if (initialLoad) {
           initialLoad = false;
