@@ -366,12 +366,12 @@ async def generate_session_title(req: _SessionTitleRequest) -> dict:
                 {
                     "role": "user",
                     "content": (
-                        "次のメッセージを15文字以内の簡潔なタイトルにしてください。"
-                        "タイトルのみを返してください。\n\n" + req.first_message[:300]
+                        "次のメッセージを30文字以内の簡潔なタイトルにしてください。"
+                        "省略（...）は使わず、タイトルのみを返してください。\n\n" + req.first_message[:500]
                     ),
                 }
             ],
-            "max_tokens": 30,
+            "max_tokens": 60,
             "temperature": 0.3,
         }
         async with httpx.AsyncClient(timeout=8.0) as client:
