@@ -2224,6 +2224,34 @@
         .map(([name]) => name);
     }
 
+    // --- 認証ガイド ---
+    let authGuideShown = false;
+    function showAuthGuide() {
+      if (authGuideShown) return;
+      authGuideShown = true;
+      const guide = document.createElement('div');
+      guide.id = 'auth-guide';
+      guide.innerHTML = `
+        <div style="max-width:420px;margin:40px auto;padding:24px;background:var(--muted);border:1px solid var(--border);border-radius:8px;text-align:center;">
+          <div style="font-size:24px;margin-bottom:12px;">🔑</div>
+          <div style="font-size:14px;font-weight:500;color:var(--fg);margin-bottom:8px;">API Key が必要です</div>
+          <div style="font-size:12px;color:var(--muted-fg);line-height:1.6;margin-bottom:16px;">
+            このサーバーは API Key 認証が有効です。<br>
+            右パネルの <b>API Key</b> セクションを開いて、<br>
+            管理者から共有されたキーを入力してください。
+          </div>
+          <button onclick="document.querySelector('#right-panel details').open=true;this.closest('#auth-guide').remove();authGuideShown=false;"
+            style="padding:8px 20px;font-size:12px;background:var(--primary);color:#fff;border:none;border-radius:4px;cursor:pointer;">
+            API Key を設定する
+          </button>
+        </div>`;
+      document.getElementById('messages').appendChild(guide);
+    }
+    function hideAuthGuide() {
+      const el = document.getElementById('auth-guide');
+      if (el) { el.remove(); authGuideShown = false; }
+    }
+
     // --- WebSocket ---
     function connect() {
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -2233,6 +2261,7 @@
       ws = new WebSocket(`${proto}//${location.host}/agent/ws?${wsParams}`);
 
       ws.onopen = () => {
+        hideAuthGuide();
         statusEl.textContent = '接続中';
         statusEl.className = 'conn-status connected';
         sendBtn.disabled = false;
@@ -2247,10 +2276,17 @@
         loadSessionList();
       };
 
-      ws.onclose = () => {
+      ws.onclose = (ev) => {
+        sendBtn.disabled = true;
+        // 認証エラー（API キー未設定 or 不正）
+        if (ev.code === 4001) {
+          statusEl.textContent = 'API Key が必要です';
+          statusEl.className = 'conn-status disconnected';
+          showAuthGuide();
+          return; // 自動再接続しない
+        }
         statusEl.textContent = '切断';
         statusEl.className = 'conn-status disconnected';
-        sendBtn.disabled = true;
         if (!manualDisconnect) {
           setTimeout(connect, 3000);
         }
