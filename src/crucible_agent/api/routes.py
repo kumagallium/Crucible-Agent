@@ -345,6 +345,7 @@ async def agent_run(req: AgentRunRequest) -> AgentRunResponse:
         tool_calls=[],
         provenance_id=provenance_id,
         token_usage=TokenUsage(**result.get("token_usage", {})),
+        model=result.get("model") or req.options.model or settings.llm_model,
     )
 
 

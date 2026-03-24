@@ -56,6 +56,7 @@ class AgentRunResponse(BaseModel):
     tool_calls: list[ToolCallRecord] = Field(default_factory=list)
     provenance_id: str | None = None
     token_usage: TokenUsage = Field(default_factory=TokenUsage)
+    model: str | None = None
 
 
 # --- GET /provenance/graph ---
