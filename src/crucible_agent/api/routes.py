@@ -499,7 +499,7 @@ async def provenance_graph(session_id: str) -> GraphResponse:
     return GraphResponse(nodes=graph["nodes"], edges=graph["edges"])
 
 
-@_authed_router.websocket("/agent/ws")
+@_public_router.websocket("/agent/ws")
 async def agent_ws(
     websocket: WebSocket,
     session_id: str | None = None,
