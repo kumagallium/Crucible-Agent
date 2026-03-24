@@ -194,6 +194,30 @@ pytest
 
 See [docs/TESTING.md](docs/TESTING.md) for test structure and coverage details.
 
+## Related Projects
+
+Crucible Agent is part of the **Crucible** ecosystem:
+
+```
+┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+│    Crucible       │    │ Crucible Agent    │    │    provnote      │
+│    (Registry)     │    │ (this repo)       │    │    (Editor)      │
+│                   │    │                   │    │                  │
+│ Build & deploy    │───►│ AI agent runtime  │◄───│ Block-based note │
+│ MCP servers from  │    │ connects LLM to   │    │ editor with      │
+│ GitHub URLs       │    │ MCP tools         │    │ PROV-DM tracking │
+└──────────────────┘    └──────────────────┘    └──────────────────┘
+   MCP server pool        tool discovery          POST /agent/run
+```
+
+| Repository | Role | Link |
+|------------|------|------|
+| **Crucible** (Registry) | MCP server build, deploy & management | [kumagallium/Crucible](https://github.com/kumagallium/Crucible) |
+| **Crucible Agent** | AI agent runtime with MCP tool support | *(this repo)* |
+| **provnote** | PROV-DM provenance tracking editor | [kumagallium/provnote](https://github.com/kumagallium/provnote) |
+
+Each project works independently. Together, they form a complete pipeline: Registry manages MCP servers → Agent connects them to LLMs → provnote provides a UI with provenance tracking.
+
 ## License
 
 [MIT](LICENSE)
