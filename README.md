@@ -130,7 +130,22 @@ CRUCIBLE_API_KEY=your-crucible-api-key
 
 # Chat UI
 CHAT_UI_ENABLED=true
+
+# Security (optional)
+AGENT_API_KEY=              # Empty = no auth (default). Set to require X-API-Key header.
+CORS_ORIGINS=               # Empty = same-origin only. Comma-separated origins for cross-origin access.
 ```
+
+### Security
+
+API key authentication and CORS restrictions are **optional**. By default, no authentication is required and only same-origin requests are allowed.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AGENT_API_KEY` | *(empty)* | When set, all endpoints (except `/health`) require `X-API-Key` header. WebSocket uses `api_key` query parameter. |
+| `CORS_ORIGINS` | *(empty)* | Comma-separated list of allowed origins (e.g. `https://example.com,http://localhost:5173`). Empty means same-origin only. |
+
+> **Note:** If you only use the built-in Chat UI (served from the same origin), you don't need to configure either of these. They are useful when connecting external frontends like [provnote](https://github.com/kumagallium/provnote).
 
 ## API Endpoints
 
