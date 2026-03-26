@@ -3577,19 +3577,19 @@
         const apiBase = document.getElementById('mm-api-base').value.trim();
 
         if (!modelId || !apiKey) {
-          alert('モデルと API キーは必須です');
+          alert('モデル ID: [' + modelId + '], API キー: [' + (apiKey ? '入力済み' : '空') + ']');
           return;
         }
 
-        try {
-          const body = {
-            model_name: modelName,
-            provider: providerSelect.value,
-            model_id: modelId,
-            api_key: apiKey,
-          };
-          if (apiBase) body.api_base = apiBase;
+        const body = {
+          model_name: modelName,
+          provider: providerSelect.value,
+          model_id: modelId,
+          api_key: apiKey,
+        };
+        if (apiBase) body.api_base = apiBase;
 
+        try {
           const resp = await fetch('/models', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -3599,8 +3599,9 @@
             const err = await resp.text();
             throw new Error(err);
           }
+          alert('追加成功！');
           loadModels();
-          renderModelList();
+          await renderModelList();
         } catch (err) {
           alert('追加に失敗しました: ' + err.message);
         }
