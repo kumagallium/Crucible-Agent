@@ -207,7 +207,7 @@ async def models_list() -> dict:
 
 # プロバイダーごとの model プレフィックス
 _PROVIDER_PREFIX: dict[str, str] = {
-    "openai": "",
+    "openai": "openai/",
     "anthropic": "anthropic/",
     "gemini": "gemini/",
     "groq": "groq/",
