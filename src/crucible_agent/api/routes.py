@@ -163,8 +163,18 @@ async def models_list() -> dict:
             mid = str(row["model_id"])
             if mid in model_map:
                 continue  # /model/info で既に取得済み
-            # model_info（非暗号化）からメタデータを読む
-            info = row["model_info"] if isinstance(row["model_info"], dict) else {}
+            # model_info（非暗号化 jsonb）からメタデータを読む
+            raw_info = row["model_info"]
+            if isinstance(raw_info, dict):
+                info = raw_info
+            elif isinstance(raw_info, str):
+                try:
+                    info = json.loads(raw_info)
+                except (json.JSONDecodeError, TypeError):
+                    info = {}
+            else:
+                info = {}
+            logger.debug("DB model %s model_info type=%s val=%s", mid, type(raw_info).__name__, raw_info)
             raw_model = info.get("original_model", "")
             provider = info.get("provider", "")
             if not provider and "/" in raw_model:
