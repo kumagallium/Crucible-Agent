@@ -30,6 +30,7 @@ services:
     volumes:
       - ./mcp_agent.config.yaml:/app/mcp_agent.config.yaml:ro
       - ./litellm_config.yaml:/app/litellm_config.yaml
+      - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 
   litellm:

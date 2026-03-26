@@ -107,102 +107,21 @@ def _litellm_headers() -> dict[str, str]:
 
 @_authed_router.get("/models")
 async def models_list() -> dict:
-    """LiteLLM に登録されたモデル一覧を返す
-
-    /model/info（ランタイム上の config モデル）と
-    LiteLLM DB（API で追加した DB モデル）をマージして返す。
-    """
-    model_map: dict[str, dict] = {}  # id -> model
-
-    # 1. /model/info からランタイム上のモデルを取得（config モデル含む）
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(
-                f"{settings.litellm_api_base}/model/info",
-                headers=_litellm_headers(),
-            )
-            resp.raise_for_status()
-            data = resp.json()
-
-        for m in data.get("data", []):
-            model_name = m.get("model_name", "")
-            model_info = m.get("model_info", {})
-            litellm_params = m.get("litellm_params", {})
-            raw_model = litellm_params.get("model", "")
-            mid = model_info.get("id", model_name)
-            model_map[mid] = {
-                "id": mid,
-                "name": model_name,
-                "provider": raw_model.split("/")[0] if "/" in raw_model else "unknown",
-                "model_id": raw_model,
-                "supports_function_calling": litellm_params.get(
-                    "supports_function_calling",
-                    False,
-                ),
-                "db_model": model_info.get("db_model", False),
-            }
-    except Exception:
-        logger.warning("Failed to fetch models from LiteLLM", exc_info=True)
-
-    # 2. LiteLLM DB から DB モデルを補完（/model/info に載らないものを追加）
-    try:
-        import asyncpg
-
-        dsn = settings.database_url.replace("+asyncpg", "").replace(
-            "/crucible_agent", "/litellm"
-        )
-        conn = await asyncpg.connect(dsn)
-        try:
-            rows = await conn.fetch(
-                'SELECT model_id, model_name, model_info'
-                ' FROM "LiteLLM_ProxyModelTable"'
-            )
-        finally:
-            await conn.close()
-
-        for row in rows:
-            mid = str(row["model_id"])
-            if mid in model_map:
-                continue  # /model/info で既に取得済み
-            # model_info（非暗号化 jsonb）からメタデータを読む
-            raw_info = row["model_info"]
-            if isinstance(raw_info, dict):
-                info = raw_info
-            elif isinstance(raw_info, str):
-                try:
-                    info = json.loads(raw_info)
-                except (json.JSONDecodeError, TypeError):
-                    info = {}
-            else:
-                info = {}
-            logger.debug("DB model %s model_info type=%s val=%s", mid, type(raw_info).__name__, raw_info)
-            raw_model = info.get("original_model", "")
-            provider = info.get("provider", "")
-            if not provider and "/" in raw_model:
-                provider = raw_model.split("/")[0]
-            model_map[mid] = {
-                "id": mid,
-                "name": row["model_name"],
-                "provider": provider or "unknown",
-                "model_id": raw_model,
-                "supports_function_calling": False,
-                "db_model": True,
-                "api_base": info.get("api_base", ""),
-            }
-    except Exception:
-        logger.warning("Failed to fetch DB models", exc_info=True)
-
-    if not model_map:
-        model_map["fallback"] = {
-            "id": settings.llm_model,
-            "name": settings.llm_model,
-            "provider": "unknown",
-            "model_id": "",
-            "supports_function_calling": True,
-            "db_model": False,
-        }
-
-    return {"models": list(model_map.values()), "default": settings.llm_model}
+    """config ファイルからモデル一覧を返す"""
+    models = []
+    for m in litellm_config.list_models():
+        raw_model = m.get("litellm_params", {}).get("model", "")
+        api_base = m.get("litellm_params", {}).get("api_base", "")
+        models.append({
+            "name": m.get("model_name", ""),
+            "provider": raw_model.split("/")[0] if "/" in raw_model else "unknown",
+            "model_id": raw_model,
+            "api_base": api_base,
+            "supports_function_calling": m.get("litellm_params", {}).get(
+                "supports_function_calling", False
+            ),
+        })
+    return {"models": models, "default": settings.llm_model}
 
 
 # プロバイダーごとの model プレフィックス
@@ -260,227 +179,81 @@ class _ModelCreateRequest(BaseModel):
 
 @_authed_router.post("/models", status_code=201)
 async def models_create(req: _ModelCreateRequest) -> dict:
-    """LiteLLM にモデルを動的に追加する"""
+    """モデルを追加する（config 書き込み → LiteLLM 再起動）"""
     prefix = _PROVIDER_PREFIX.get(req.provider, f"{req.provider}/")
     litellm_model = f"{prefix}{req.model_id}" if prefix else req.model_id
 
-    payload: dict = {
-        "model_name": req.model_name,
-        "litellm_params": {
-            "model": litellm_model,
-            "api_key": req.api_key,
-        },
-    }
-    if req.api_base:
-        payload["litellm_params"]["api_base"] = req.api_base
-
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                f"{settings.litellm_api_base}/model/new",
-                headers=_litellm_headers(),
-                json=payload,
-            )
-            resp.raise_for_status()
-            result = resp.json()
-
-        # model_info にメタデータを保存（litellm_params は暗号化されるため）
-        model_id = result.get("model_id") or result.get("model_info", {}).get("id")
-        if model_id:
-            await _save_model_meta(model_id, req.provider, litellm_model, req.api_base)
-
-        # config に永続化（LiteLLM 再起動時にロードされる）
-        litellm_config.add_model(req.model_name, litellm_model, req.api_key, req.api_base)
-
-        return result
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(
-            status_code=e.response.status_code,
-            detail=e.response.text,
-        )
-
-
-async def _save_model_meta(
-    model_id: str, provider: str, model: str, api_base: str | None
-) -> None:
-    """model_info JSON にプロバイダー・モデル情報を追記する（暗号化されない列）"""
-    import asyncpg
-
-    dsn = settings.database_url.replace("+asyncpg", "").replace(
-        "/crucible_agent", "/litellm"
-    )
-    conn = await asyncpg.connect(dsn)
-    try:
-        meta = json.dumps({
-            "id": model_id,
-            "db_model": True,
-            "provider": provider,
-            "original_model": model,
-            "api_base": api_base or "",
-        })
-        await conn.execute(
-            'UPDATE "LiteLLM_ProxyModelTable"'
-            " SET model_info = $1"
-            " WHERE model_id = $2",
-            meta,
-            model_id,
-        )
-    finally:
-        await conn.close()
+    litellm_config.add_model(req.model_name, litellm_model, req.api_key, req.api_base)
+    await _restart_litellm()
+    return {"message": f"Model '{req.model_name}' added"}
 
 
 class _ModelDeleteRequest(BaseModel):
     """DELETE /models リクエスト"""
 
-    id: str
+    name: str
 
 
 @_authed_router.delete("/models", status_code=200)
 async def models_delete(req: _ModelDeleteRequest) -> dict:
-    """LiteLLM からモデルを削除する"""
-    # 削除前にモデル名を取得（config から削除するため）
-    model_name = req.name if hasattr(req, "name") and req.name else None
-    if not model_name:
-        try:
-            import asyncpg
-
-            dsn = settings.database_url.replace("+asyncpg", "").replace(
-                "/crucible_agent", "/litellm"
-            )
-            conn = await asyncpg.connect(dsn)
-            try:
-                row = await conn.fetchrow(
-                    'SELECT model_name FROM "LiteLLM_ProxyModelTable"'
-                    " WHERE model_id = $1",
-                    req.id,
-                )
-                if row:
-                    model_name = row["model_name"]
-            finally:
-                await conn.close()
-        except Exception:
-            pass
-
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                f"{settings.litellm_api_base}/model/delete",
-                headers=_litellm_headers(),
-                json={"id": req.id},
-            )
-            resp.raise_for_status()
-
-        # config からも削除
-        if model_name:
-            litellm_config.remove_model(model_name)
-
-        return resp.json()
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(
-            status_code=e.response.status_code,
-            detail=e.response.text,
-        )
+    """モデルを削除する（config から削除 → LiteLLM 再起動）"""
+    litellm_config.remove_model(req.name)
+    await _restart_litellm()
+    return {"message": f"Model '{req.name}' deleted"}
 
 
 class _ModelUpdateRequest(BaseModel):
-    """PUT /models リクエスト（DB モデル専用）"""
+    """PUT /models リクエスト"""
 
     model_name: str
     provider: str
     model_id: str
     api_key: str | None = None
     api_base: str | None = None
-    # LiteLLM 内部 ID（既存モデルの特定に使用）
-    litellm_id: str
     # 変更前のモデル名（config 更新用）
-    old_name: str | None = None
+    old_name: str
 
 
 @_authed_router.put("/models", status_code=200)
 async def models_update(req: _ModelUpdateRequest) -> dict:
-    """DB モデルを更新する
+    """モデルを更新する（config 更新 → LiteLLM 再起動）
 
-    API キーあり → 削除→再追加（完全更新）
-    API キーなし → 表示名・メタデータのみ DB 直接更新（軽量更新）
+    API キーあり: 接続設定を含む完全更新
+    API キーなし: 表示名のみ更新
     """
     prefix = _PROVIDER_PREFIX.get(req.provider, f"{req.provider}/")
     litellm_model = f"{prefix}{req.model_id}" if prefix else req.model_id
 
-    if req.api_key:
-        # 完全更新: 削除→再追加
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                del_resp = await client.post(
-                    f"{settings.litellm_api_base}/model/delete",
-                    headers=_litellm_headers(),
-                    json={"id": req.litellm_id},
-                )
-                del_resp.raise_for_status()
+    litellm_config.update_model(
+        req.old_name, req.model_name, litellm_model, req.api_key, req.api_base
+    )
+    await _restart_litellm()
+    return {"message": f"Model '{req.model_name}' updated"}
 
-                payload: dict = {
-                    "model_name": req.model_name,
-                    "litellm_params": {
-                        "model": litellm_model,
-                        "api_key": req.api_key,
-                    },
-                }
-                if req.api_base:
-                    payload["litellm_params"]["api_base"] = req.api_base
 
-                add_resp = await client.post(
-                    f"{settings.litellm_api_base}/model/new",
-                    headers=_litellm_headers(),
-                    json=payload,
-                )
-                add_resp.raise_for_status()
-                result = add_resp.json()
-
-            new_id = result.get("model_id") or result.get("model_info", {}).get("id")
-            if new_id:
-                await _save_model_meta(new_id, req.provider, litellm_model, req.api_base)
-
-            # config を更新
-            old = req.old_name or req.model_name
-            litellm_config.update_model(
-                old, req.model_name, litellm_model, req.api_key, req.api_base
+async def _restart_litellm() -> None:
+    """LiteLLM コンテナを再起動する（Docker API 経由）"""
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.AsyncHTTPTransport(uds="/var/run/docker.sock"),
+            timeout=30.0,
+        ) as client:
+            resp = await client.post(
+                "http://localhost/containers/crucible-agent-litellm-1/restart",
             )
-            return result
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(
-                status_code=e.response.status_code,
-                detail=e.response.text,
-            ) from e
-    else:
-        # 軽量更新: 表示名・メタデータのみ DB で更新（API キー不要）
-        import asyncpg
-
-        dsn = settings.database_url.replace("+asyncpg", "").replace(
-            "/crucible_agent", "/litellm"
+            if resp.status_code not in (204, 304):
+                logger.error("Failed to restart LiteLLM: %s", resp.text)
+                raise HTTPException(
+                    status_code=500, detail="Failed to restart LiteLLM"
+                )
+        # LiteLLM が起動するまで待機
+        await asyncio.sleep(10)
+    except httpx.ConnectError:
+        logger.error("Cannot connect to Docker socket")
+        raise HTTPException(
+            status_code=500,
+            detail="Cannot connect to Docker socket",
         )
-        conn = await asyncpg.connect(dsn)
-        try:
-            meta = json.dumps({
-                "id": req.litellm_id,
-                "db_model": True,
-                "provider": req.provider,
-                "original_model": litellm_model,
-                "api_base": req.api_base or "",
-            })
-            await conn.execute(
-                'UPDATE "LiteLLM_ProxyModelTable"'
-                " SET model_name = $1, model_info = $2"
-                " WHERE model_id = $3",
-                req.model_name,
-                meta,
-                req.litellm_id,
-            )
-        finally:
-            await conn.close()
-
-        # config を更新（表示名のみ）
-        old = req.old_name or req.model_name
-        litellm_config.update_model(old, req.model_name)
-        return {"message": "updated"}
 
 
 @_authed_router.get("/tools", response_model=ToolsResponse)

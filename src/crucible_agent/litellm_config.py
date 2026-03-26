@@ -37,6 +37,12 @@ def _get_model_list(data: dict[str, Any]) -> list[dict]:
     return data["model_list"]
 
 
+def list_models() -> list[dict]:
+    """config のモデル一覧を返す"""
+    data = _read()
+    return _get_model_list(data)
+
+
 def add_model(
     model_name: str,
     litellm_model: str,
