@@ -437,11 +437,6 @@ async def models_update(req: _ModelUpdateRequest) -> dict:
         finally:
             await conn.close()
         return {"message": "updated"}
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(
-            status_code=e.response.status_code,
-            detail=e.response.text,
-        ) from e
 
 
 @_authed_router.get("/tools", response_model=ToolsResponse)
