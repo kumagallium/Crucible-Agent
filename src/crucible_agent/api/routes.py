@@ -239,7 +239,7 @@ class _ModelUpdateRequest(BaseModel):
     model_name: str
     provider: str
     model_id: str
-    api_key: str | None = None
+    api_key: str
     api_base: str | None = None
     # LiteLLM 内部 ID（既存モデルの特定に使用）
     litellm_id: str
@@ -247,33 +247,38 @@ class _ModelUpdateRequest(BaseModel):
 
 @_authed_router.put("/models", status_code=200)
 async def models_update(req: _ModelUpdateRequest) -> dict:
-    """LiteLLM のモデル設定を更新する（/model/update API 使用）"""
+    """LiteLLM のモデル設定を更新する（削除→再追加）"""
     prefix = _PROVIDER_PREFIX.get(req.provider, f"{req.provider}/")
     litellm_model = f"{prefix}{req.model_id}" if prefix else req.model_id
 
-    payload: dict = {
-        "model_name": req.model_name,
-        "litellm_params": {
-            "model": litellm_model,
-        },
-        "model_info": {
-            "id": req.litellm_id,
-        },
-    }
-    if req.api_key:
-        payload["litellm_params"]["api_key"] = req.api_key
-    if req.api_base:
-        payload["litellm_params"]["api_base"] = req.api_base
-
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(
-                f"{settings.litellm_api_base}/model/update",
+            # 1. 既存モデルを削除
+            del_resp = await client.post(
+                f"{settings.litellm_api_base}/model/delete",
+                headers=_litellm_headers(),
+                json={"id": req.litellm_id},
+            )
+            del_resp.raise_for_status()
+
+            # 2. 新しい設定で再追加
+            payload: dict = {
+                "model_name": req.model_name,
+                "litellm_params": {
+                    "model": litellm_model,
+                    "api_key": req.api_key,
+                },
+            }
+            if req.api_base:
+                payload["litellm_params"]["api_base"] = req.api_base
+
+            add_resp = await client.post(
+                f"{settings.litellm_api_base}/model/new",
                 headers=_litellm_headers(),
                 json=payload,
             )
-            resp.raise_for_status()
-            return resp.json()
+            add_resp.raise_for_status()
+            return add_resp.json()
     except httpx.HTTPStatusError as e:
         raise HTTPException(
             status_code=e.response.status_code,
