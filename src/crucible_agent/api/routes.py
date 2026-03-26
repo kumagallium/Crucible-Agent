@@ -280,26 +280,23 @@ async def models_update(req: _ModelUpdateRequest) -> dict:
             resp.raise_for_status()
 
         # 2. model_name は /model/update で反映されないため DB を直接更新
-        litellm_db_url = settings.database_url.replace(
+        import asyncpg
+
+        # database_url: postgresql+asyncpg://user:pass@host:port/crucible_agent
+        dsn = settings.database_url.replace("+asyncpg", "").replace(
             "/crucible_agent", "/litellm"
         )
-        import sqlalchemy
-        from sqlalchemy import text
-
-        engine = sqlalchemy.create_engine(
-            litellm_db_url.replace("+asyncpg", ""),
-        )
-        with engine.connect() as conn:
-            conn.execute(
-                text(
-                    'UPDATE "LiteLLM_ProxyModelTable"'
-                    " SET model_name = :name"
-                    " WHERE model_id = :mid"
-                ),
-                {"name": req.model_name, "mid": req.litellm_id},
+        conn = await asyncpg.connect(dsn)
+        try:
+            await conn.execute(
+                'UPDATE "LiteLLM_ProxyModelTable"'
+                " SET model_name = $1"
+                " WHERE model_id = $2",
+                req.model_name,
+                req.litellm_id,
             )
-            conn.commit()
-        engine.dispose()
+        finally:
+            await conn.close()
 
         return resp.json()
     except httpx.HTTPStatusError as e:
