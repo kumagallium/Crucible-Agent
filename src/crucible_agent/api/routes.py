@@ -356,7 +356,7 @@ class _ModelUpdateRequest(BaseModel):
     model_name: str
     provider: str
     model_id: str
-    api_key: str
+    api_key: str | None = None
     api_base: str | None = None
     # LiteLLM 内部 ID（既存モデルの特定に使用）
     litellm_id: str
@@ -364,49 +364,79 @@ class _ModelUpdateRequest(BaseModel):
 
 @_authed_router.put("/models", status_code=200)
 async def models_update(req: _ModelUpdateRequest) -> dict:
-    """DB モデルを更新する（削除→再追加）
+    """DB モデルを更新する
 
-    config 定義モデルは LiteLLM API では編集不可。
-    DB モデルのみ対象。
+    API キーあり → 削除→再追加（完全更新）
+    API キーなし → 表示名・メタデータのみ DB 直接更新（軽量更新）
     """
     prefix = _PROVIDER_PREFIX.get(req.provider, f"{req.provider}/")
     litellm_model = f"{prefix}{req.model_id}" if prefix else req.model_id
 
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            # 1. 既存モデルを削除
-            del_resp = await client.post(
-                f"{settings.litellm_api_base}/model/delete",
-                headers=_litellm_headers(),
-                json={"id": req.litellm_id},
+    if req.api_key:
+        # 完全更新: 削除→再追加
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                del_resp = await client.post(
+                    f"{settings.litellm_api_base}/model/delete",
+                    headers=_litellm_headers(),
+                    json={"id": req.litellm_id},
+                )
+                del_resp.raise_for_status()
+
+                payload: dict = {
+                    "model_name": req.model_name,
+                    "litellm_params": {
+                        "model": litellm_model,
+                        "api_key": req.api_key,
+                    },
+                }
+                if req.api_base:
+                    payload["litellm_params"]["api_base"] = req.api_base
+
+                add_resp = await client.post(
+                    f"{settings.litellm_api_base}/model/new",
+                    headers=_litellm_headers(),
+                    json=payload,
+                )
+                add_resp.raise_for_status()
+                result = add_resp.json()
+
+            new_id = result.get("model_id") or result.get("model_info", {}).get("id")
+            if new_id:
+                await _save_model_meta(new_id, req.provider, litellm_model, req.api_base)
+            return result
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(
+                status_code=e.response.status_code,
+                detail=e.response.text,
+            ) from e
+    else:
+        # 軽量更新: 表示名・メタデータのみ DB で更新（API キー不要）
+        import asyncpg
+
+        dsn = settings.database_url.replace("+asyncpg", "").replace(
+            "/crucible_agent", "/litellm"
+        )
+        conn = await asyncpg.connect(dsn)
+        try:
+            meta = json.dumps({
+                "id": req.litellm_id,
+                "db_model": True,
+                "provider": req.provider,
+                "original_model": litellm_model,
+                "api_base": req.api_base or "",
+            })
+            await conn.execute(
+                'UPDATE "LiteLLM_ProxyModelTable"'
+                " SET model_name = $1, model_info = $2"
+                " WHERE model_id = $3",
+                req.model_name,
+                meta,
+                req.litellm_id,
             )
-            del_resp.raise_for_status()
-
-            # 2. 新しい設定で再追加
-            payload: dict = {
-                "model_name": req.model_name,
-                "litellm_params": {
-                    "model": litellm_model,
-                    "api_key": req.api_key,
-                },
-            }
-            if req.api_base:
-                payload["litellm_params"]["api_base"] = req.api_base
-
-            add_resp = await client.post(
-                f"{settings.litellm_api_base}/model/new",
-                headers=_litellm_headers(),
-                json=payload,
-            )
-            add_resp.raise_for_status()
-            result = add_resp.json()
-
-        # メタデータを更新
-        new_id = result.get("model_id") or result.get("model_info", {}).get("id")
-        if new_id:
-            await _save_model_meta(new_id, req.provider, litellm_model, req.api_base)
-
-        return result
+        finally:
+            await conn.close()
+        return {"message": "updated"}
     except httpx.HTTPStatusError as e:
         raise HTTPException(
             status_code=e.response.status_code,
