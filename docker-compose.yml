@@ -41,6 +41,7 @@ services:
     env_file: .env
     environment:
       - DATABASE_URL=postgresql://agent:agent@postgres:5432/crucible_agent
+      - STORE_MODEL_IN_DB=True
     depends_on:
       postgres:
         condition: service_healthy
