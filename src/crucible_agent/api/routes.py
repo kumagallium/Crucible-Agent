@@ -153,7 +153,7 @@ async def models_list() -> dict:
         conn = await asyncpg.connect(dsn)
         try:
             rows = await conn.fetch(
-                'SELECT model_id, model_name, litellm_params'
+                'SELECT model_id, model_name, model_info'
                 ' FROM "LiteLLM_ProxyModelTable"'
             )
         finally:
@@ -163,17 +163,20 @@ async def models_list() -> dict:
             mid = str(row["model_id"])
             if mid in model_map:
                 continue  # /model/info で既に取得済み
-            params = row["litellm_params"] if isinstance(row["litellm_params"], dict) else {}
-            raw_model = params.get("model", "")
+            # model_info（非暗号化）からメタデータを読む
+            info = row["model_info"] if isinstance(row["model_info"], dict) else {}
+            raw_model = info.get("original_model", "")
+            provider = info.get("provider", "")
+            if not provider and "/" in raw_model:
+                provider = raw_model.split("/")[0]
             model_map[mid] = {
                 "id": mid,
                 "name": row["model_name"],
-                "provider": raw_model.split("/")[0] if "/" in raw_model else "unknown",
+                "provider": provider or "unknown",
                 "model_id": raw_model,
-                "supports_function_calling": params.get(
-                    "supports_function_calling", False
-                ),
+                "supports_function_calling": False,
                 "db_model": True,
+                "api_base": info.get("api_base", ""),
             }
     except Exception:
         logger.warning("Failed to fetch DB models", exc_info=True)
@@ -268,12 +271,48 @@ async def models_create(req: _ModelCreateRequest) -> dict:
                 json=payload,
             )
             resp.raise_for_status()
-            return resp.json()
+            result = resp.json()
+
+        # model_info にメタデータを保存（litellm_params は暗号化されるため）
+        model_id = result.get("model_id") or result.get("model_info", {}).get("id")
+        if model_id:
+            await _save_model_meta(model_id, req.provider, litellm_model, req.api_base)
+
+        return result
     except httpx.HTTPStatusError as e:
         raise HTTPException(
             status_code=e.response.status_code,
             detail=e.response.text,
         )
+
+
+async def _save_model_meta(
+    model_id: str, provider: str, model: str, api_base: str | None
+) -> None:
+    """model_info JSON にプロバイダー・モデル情報を追記する（暗号化されない列）"""
+    import asyncpg
+
+    dsn = settings.database_url.replace("+asyncpg", "").replace(
+        "/crucible_agent", "/litellm"
+    )
+    conn = await asyncpg.connect(dsn)
+    try:
+        meta = json.dumps({
+            "id": model_id,
+            "db_model": True,
+            "provider": provider,
+            "original_model": model,
+            "api_base": api_base or "",
+        })
+        await conn.execute(
+            'UPDATE "LiteLLM_ProxyModelTable"'
+            " SET model_info = $1"
+            " WHERE model_id = $2",
+            meta,
+            uuid.UUID(model_id),
+        )
+    finally:
+        await conn.close()
 
 
 class _ModelDeleteRequest(BaseModel):
@@ -350,7 +389,14 @@ async def models_update(req: _ModelUpdateRequest) -> dict:
                 json=payload,
             )
             add_resp.raise_for_status()
-            return add_resp.json()
+            result = add_resp.json()
+
+        # メタデータを更新
+        new_id = result.get("model_id") or result.get("model_info", {}).get("id")
+        if new_id:
+            await _save_model_meta(new_id, req.provider, litellm_model, req.api_base)
+
+        return result
     except httpx.HTTPStatusError as e:
         raise HTTPException(
             status_code=e.response.status_code,
