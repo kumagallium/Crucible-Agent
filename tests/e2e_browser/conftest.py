@@ -58,6 +58,10 @@ def _run_server(port: int, ready_event: threading.Event) -> uvicorn.Server:
     engine = loop.run_until_complete(setup_db())
     factory = async_sessionmaker(engine, expire_on_commit=False)
 
+    # セッションタイトル生成のモック（LiteLLM 不要にする）
+    async def _mock_generate_title(*args, **kwargs):
+        return "Test Session"
+
     # パッチ適用（このスレッド内で）
     patches = [
         patch("crucible_agent.provenance.recorder._session_factory", factory),
@@ -66,6 +70,10 @@ def _run_server(port: int, ready_event: threading.Event) -> uvicorn.Server:
         patch(
             "crucible_agent.agent.runner.adapter_run_stream",
             side_effect=lambda **kw: _mock_run_agent_stream(**kw),
+        ),
+        patch(
+            "crucible_agent.api.routes.generate_session_title",
+            side_effect=_mock_generate_title,
         ),
     ]
     for p in patches:
