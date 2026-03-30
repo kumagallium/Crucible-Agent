@@ -16,7 +16,7 @@ Base URL: `http://localhost:8090`
   "options": {
     "max_turns": 10,
     "require_approval": false,
-    "model": "sakura"
+    "model": "your-model-name"
   }
 }
 ```

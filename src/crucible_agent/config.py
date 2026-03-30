@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     # --- LLM ---
     litellm_api_base: str = "http://litellm:4000"
     litellm_api_key: str = "sk-crucible-agent-dev"
-    llm_model: str = "sakura"
+    llm_model: str = ""  # 未設定時は登録済みモデルの先頭を使用
 
     # --- Crucible ---
     crucible_api_url: str = "http://crucible-api:8080"

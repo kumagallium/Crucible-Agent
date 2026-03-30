@@ -115,11 +115,11 @@ Edit `.env` to configure. See [.env.example](.env.example) for all options.
 
 ```bash
 # LLM (via LiteLLM Proxy)
-LLM_MODEL=sakura
-SAKURA_AI_API_KEY=your-key
-SAKURA_AI_API_BASE=https://your-endpoint
+# LLM_MODEL=  # Auto-selects first registered model if unset
 
-# Additional providers (enable in litellm_config.yaml)
+# Providers (set after registering models in the management UI)
+# SAKURA_AI_API_KEY=your-key
+# SAKURA_AI_API_BASE=https://your-endpoint
 # OPENAI_API_KEY=sk-...
 # ANTHROPIC_API_KEY=sk-ant-...
 # GEMINI_API_KEY=...
