@@ -2144,14 +2144,24 @@
           const currentVal = modelSelectEl.value;
           modelSelectEl.innerHTML = '';
           const defaultModel = data.default || '';
-          (data.models || []).forEach(m => {
+          const modelList = data.models || [];
+          if (modelList.length === 0) {
             const opt = document.createElement('option');
-            opt.value = m.name;
-            opt.textContent = m.name + (m.provider !== 'unknown' ? ` (${m.provider})` : '');
-            if (m.name === defaultModel) opt.selected = true;
+            opt.value = '';
+            opt.textContent = 'モデルを設定してください';
+            opt.disabled = true;
+            opt.selected = true;
             modelSelectEl.appendChild(opt);
-          });
-          if (currentVal) modelSelectEl.value = currentVal;
+          } else {
+            modelList.forEach(m => {
+              const opt = document.createElement('option');
+              opt.value = m.name;
+              opt.textContent = m.name + (m.provider !== 'unknown' ? ` (${m.provider})` : '');
+              if (m.name === defaultModel) opt.selected = true;
+              modelSelectEl.appendChild(opt);
+            });
+            if (currentVal) modelSelectEl.value = currentVal;
+          }
         })
         .catch(() => {
           modelSelectEl.innerHTML = '<option value="">取得失敗</option>';

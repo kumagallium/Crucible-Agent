@@ -106,6 +106,19 @@ def _litellm_headers() -> dict[str, str]:
     }
 
 
+def _resolve_default_model() -> str:
+    """有効なデフォルトモデルを解決する
+
+    優先順位: 環境変数 LLM_MODEL → 登録済みモデルの先頭 → 空文字列
+    """
+    if settings.llm_model:
+        return settings.llm_model
+    models = litellm_config.list_models()
+    if models:
+        return models[0].get("model_name", "")
+    return ""
+
+
 @_authed_router.get("/models")
 async def models_list() -> dict:
     """config ファイルからモデル一覧を返す"""
@@ -122,7 +135,7 @@ async def models_list() -> dict:
                 "supports_function_calling", False
             ),
         })
-    return {"models": models, "default": settings.llm_model}
+    return {"models": models, "default": _resolve_default_model()}
 
 
 # プロバイダーごとの model プレフィックス
@@ -393,7 +406,7 @@ async def agent_run(req: AgentRunRequest) -> AgentRunResponse:
         tool_calls=[],
         provenance_id=provenance_id,
         token_usage=TokenUsage(**result.get("token_usage", {})),
-        model=result.get("model") or req.options.model or settings.llm_model,
+        model=result.get("model") or req.options.model or _resolve_default_model(),
     )
 
 
@@ -409,8 +422,11 @@ async def generate_session_title(req: _SessionTitleRequest) -> dict:
             "Authorization": f"Bearer {settings.litellm_api_key}",
             "Content-Type": "application/json",
         }
+        model = _resolve_default_model()
+        if not model:
+            return {"title": "New Chat"}
         payload = {
-            "model": settings.llm_model,
+            "model": model,
             "messages": [
                 {
                     "role": "user",

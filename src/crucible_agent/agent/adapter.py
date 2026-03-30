@@ -182,8 +182,22 @@ async def _call_llm(
     model: str | None = None,
 ) -> dict:
     """LiteLLM Proxy に chat completions リクエストを送る（リトライ付き）"""
+    from crucible_agent import litellm_config
+
+    resolved_model = model or settings.llm_model
+    if not resolved_model:
+        # 登録済みモデルの先頭を使用
+        registered = litellm_config.list_models()
+        if registered:
+            resolved_model = registered[0].get("model_name", "")
+    if not resolved_model:
+        raise LLMError(
+            "モデルが設定されていません。管理画面からモデルを登録してください。",
+            retryable=False,
+        )
+
     payload: dict[str, Any] = {
-        "model": model or settings.llm_model,
+        "model": resolved_model,
         "messages": messages,
     }
     if tools:
