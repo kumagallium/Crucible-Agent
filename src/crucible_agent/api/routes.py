@@ -260,6 +260,22 @@ async def models_update(req: _ModelUpdateRequest) -> dict:
     return {"message": f"Model '{req.model_name}' updated"}
 
 
+async def _find_litellm_container(client: httpx.AsyncClient) -> str:
+    """Docker Compose のラベルから LiteLLM コンテナ ID を取得する"""
+    resp = await client.get(
+        "http://localhost/containers/json",
+        params={"filters": '{"label":["com.docker.compose.service=litellm"]}'},
+    )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=500, detail="Failed to list Docker containers")
+    containers = resp.json()
+    if not containers:
+        raise HTTPException(
+            status_code=500, detail="LiteLLM container not found"
+        )
+    return containers[0]["Id"]
+
+
 async def _restart_litellm() -> None:
     """LiteLLM コンテナを再起動する（Docker API 経由）"""
     try:
@@ -267,8 +283,9 @@ async def _restart_litellm() -> None:
             transport=httpx.AsyncHTTPTransport(uds="/var/run/docker.sock"),
             timeout=30.0,
         ) as client:
+            container_id = await _find_litellm_container(client)
             resp = await client.post(
-                "http://localhost/containers/crucible-agent-litellm-1/restart",
+                f"http://localhost/containers/{container_id}/restart",
             )
             if resp.status_code not in (204, 304):
                 logger.error("Failed to restart LiteLLM: %s", resp.text)
