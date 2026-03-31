@@ -109,11 +109,16 @@ def _litellm_headers() -> dict[str, str]:
 def _resolve_default_model() -> str:
     """有効なデフォルトモデルを解決する
 
-    優先順位: 環境変数 LLM_MODEL → 登録済みモデルの先頭 → 空文字列
+    優先順位:
+    1. 環境変数 LLM_MODEL（登録済みモデルに存在する場合のみ）
+    2. 登録済みモデルの先頭
+    3. 空文字列
     """
-    if settings.llm_model:
-        return settings.llm_model
     models = litellm_config.list_models()
+    registered_names = {m.get("model_name", "") for m in models}
+
+    if settings.llm_model and settings.llm_model in registered_names:
+        return settings.llm_model
     if models:
         return models[0].get("model_name", "")
     return ""
