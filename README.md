@@ -229,7 +229,7 @@ graph LR
 
 | Repository | Role | Link |
 |------------|------|------|
-| **Crucible** (Registry) | MCP server build, deploy & management | [kumagallium/Crucible](https://github.com/kumagallium/Crucible) |
+| **Crucible** | MCP server build, deploy & management | [kumagallium/Crucible](https://github.com/kumagallium/Crucible) |
 | **Crucible Agent** | AI agent runtime with MCP tool support | [kumagallium/Crucible-Agent](https://github.com/kumagallium/Crucible-Agent) *(this repo)* |
 | **provnote** | PROV-DM provenance tracking editor | [kumagallium/provnote](https://github.com/kumagallium/provnote) |
 
