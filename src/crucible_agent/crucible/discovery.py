@@ -50,8 +50,7 @@ async def discover_servers() -> list[DiscoveredServer]:
         logger.warning("Crucible Registry に接続できません (%s)", settings.crucible_api_url)
         return []
 
-    # Registry API のホスト部分を MCP サーバーのホストとして使う
-    # (Docker 内部 IP ではなく VPN IP 等の到達可能なアドレス)
+    # フォールバック: static_ip がない場合は Registry ホストを使う
     crucible_host = urlparse(settings.crucible_api_url).hostname or "localhost"
 
     discovered: list[DiscoveredServer] = []
@@ -60,12 +59,18 @@ async def discover_servers() -> list[DiscoveredServer]:
             continue
 
         endpoint_path = s.get("endpoint_path", "/sse")
+        static_ip = s.get("static_ip")
         port = s.get("port", 8000)
 
         # トランスポート判定: /mcp → streamable-http, /sse → sse
         transport = "streamable-http" if endpoint_path == "/mcp" else "sse"
-        # Registry と同じホストにポートでアクセス（Docker 内部 IP は使わない）
-        url = f"http://{crucible_host}:{port}{endpoint_path}"
+
+        if static_ip:
+            # Docker Compose: コンテナの固定 IP + 内部ポート (8000) で直接接続
+            url = f"http://{static_ip}:8000{endpoint_path}"
+        else:
+            # サーバー直接デプロイ: Registry と同じホストに公開ポートでアクセス
+            url = f"http://{crucible_host}:{port}{endpoint_path}"
 
         discovered.append(
             DiscoveredServer(
