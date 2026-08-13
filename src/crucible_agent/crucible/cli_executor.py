@@ -65,9 +65,7 @@ class CliExecutor:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=INSTALL_TIMEOUT
-            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=INSTALL_TIMEOUT)
         except TimeoutError:
             msg = f"{name} のインストールがタイムアウトしました ({INSTALL_TIMEOUT}秒)"
             logger.error(msg)
@@ -84,7 +82,10 @@ class CliExecutor:
         return msg
 
     async def execute_with_template(
-        self, name: str, run_command: str, args: dict[str, str],
+        self,
+        name: str,
+        run_command: str,
+        args: dict[str, str],
     ) -> str:
         """run_command テンプレートに引数を埋め込んで実行する
 
@@ -124,9 +125,7 @@ class CliExecutor:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=EXECUTE_TIMEOUT
-            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=EXECUTE_TIMEOUT)
         except TimeoutError:
             msg = f"コマンドがタイムアウトしました ({EXECUTE_TIMEOUT}秒): {full_cmd[:200]}"
             logger.error(msg)

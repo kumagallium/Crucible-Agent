@@ -2,25 +2,30 @@
 
 import uuid
 
+import pytest
 from sqlalchemy import select
 
 from crucible_agent.provenance.models import (
+    Profile,
     ProvenanceActivity,
     ProvenanceAgent,
     ProvenanceDerivation,
     ProvenanceEntity,
     ProvenanceUsage,
-    Profile,
 )
 
 
 class TestProvenanceAgentCRUD:
     async def test_create_and_read(self, async_session):
-        agent = ProvenanceAgent(name="test-llm", type="llm", provider="anthropic", model_id="claude")
+        agent = ProvenanceAgent(
+            name="test-llm", type="llm", provider="anthropic", model_id="claude"
+        )
         async_session.add(agent)
         await async_session.commit()
 
-        result = await async_session.execute(select(ProvenanceAgent).where(ProvenanceAgent.name == "test-llm"))
+        result = await async_session.execute(
+            select(ProvenanceAgent).where(ProvenanceAgent.name == "test-llm")
+        )
         fetched = result.scalar_one()
         assert fetched.type == "llm"
         assert fetched.provider == "anthropic"
@@ -31,7 +36,9 @@ class TestProvenanceAgentCRUD:
         async_session.add(agent)
         await async_session.commit()
 
-        result = await async_session.execute(select(ProvenanceAgent).where(ProvenanceAgent.name == "auto-id"))
+        result = await async_session.execute(
+            select(ProvenanceAgent).where(ProvenanceAgent.name == "auto-id")
+        )
         fetched = result.scalar_one()
         # UUID 形式であること
         uuid.UUID(fetched.id)
@@ -41,7 +48,9 @@ class TestProvenanceAgentCRUD:
         async_session.add(agent)
         await async_session.commit()
 
-        result = await async_session.execute(select(ProvenanceAgent).where(ProvenanceAgent.name == "minimal"))
+        result = await async_session.execute(
+            select(ProvenanceAgent).where(ProvenanceAgent.name == "minimal")
+        )
         fetched = result.scalar_one()
         assert fetched.provider is None
         assert fetched.model_id is None
@@ -149,9 +158,7 @@ class TestProvenanceDerivationCRUD:
         await async_session.commit()
 
         result = await async_session.execute(
-            select(ProvenanceDerivation).where(
-                ProvenanceDerivation.derived_entity_id == e2.id
-            )
+            select(ProvenanceDerivation).where(ProvenanceDerivation.derived_entity_id == e2.id)
         )
         fetched = result.scalar_one()
         assert fetched.source_entity_id == e1.id
@@ -191,9 +198,7 @@ class TestProfileCRUD:
         async_session.add(profile)
         await async_session.commit()
 
-        result = await async_session.execute(
-            select(Profile).where(Profile.name == "test-profile")
-        )
+        result = await async_session.execute(select(Profile).where(Profile.name == "test-profile"))
         fetched = result.scalar_one()
         assert fetched.content == "You are a helpful assistant."
         assert fetched.is_active is True
@@ -209,7 +214,3 @@ class TestProfileCRUD:
         async_session.add(p2)
         with pytest.raises(IntegrityError):
             await async_session.commit()
-
-
-# pytest をインポート（test_unique_name で使用）
-import pytest

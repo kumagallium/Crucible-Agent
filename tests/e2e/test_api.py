@@ -1,7 +1,5 @@
 """E2E API テスト — FastAPI + SQLite in-memory で全エンドポイントを統合テスト"""
 
-import pytest
-
 
 class TestHealthEndpoint:
     async def test_health_returns_200(self, client):
@@ -28,11 +26,14 @@ class TestProfilesCRUD:
         assert "profiles" in data
 
     async def test_create_profile(self, client):
-        resp = await client.post("/profiles", json={
-            "name": "test-profile",
-            "description": "E2E test profile",
-            "content": "You are a test assistant.",
-        })
+        resp = await client.post(
+            "/profiles",
+            json={
+                "name": "test-profile",
+                "description": "E2E test profile",
+                "content": "You are a test assistant.",
+            },
+        )
         assert resp.status_code == 201
         data = resp.json()
         assert data["name"] == "test-profile"
@@ -41,11 +42,14 @@ class TestProfilesCRUD:
 
     async def test_create_and_get_profile(self, client):
         # 作成
-        create_resp = await client.post("/profiles", json={
-            "name": "get-test",
-            "description": "test",
-            "content": "content",
-        })
+        create_resp = await client.post(
+            "/profiles",
+            json={
+                "name": "get-test",
+                "description": "test",
+                "content": "content",
+            },
+        )
         assert create_resp.status_code == 201
         profile_id = create_resp.json()["id"]
 
@@ -56,28 +60,37 @@ class TestProfilesCRUD:
 
     async def test_update_profile(self, client):
         # 作成
-        create_resp = await client.post("/profiles", json={
-            "name": "update-test",
-            "description": "original",
-            "content": "original content",
-        })
+        create_resp = await client.post(
+            "/profiles",
+            json={
+                "name": "update-test",
+                "description": "original",
+                "content": "original content",
+            },
+        )
         profile_id = create_resp.json()["id"]
 
         # 更新
-        update_resp = await client.put(f"/profiles/{profile_id}", json={
-            "description": "updated",
-            "content": "updated content",
-        })
+        update_resp = await client.put(
+            f"/profiles/{profile_id}",
+            json={
+                "description": "updated",
+                "content": "updated content",
+            },
+        )
         assert update_resp.status_code == 200
         assert update_resp.json()["description"] == "updated"
 
     async def test_delete_profile(self, client):
         # 作成
-        create_resp = await client.post("/profiles", json={
-            "name": "delete-test",
-            "description": "to be deleted",
-            "content": "content",
-        })
+        create_resp = await client.post(
+            "/profiles",
+            json={
+                "name": "delete-test",
+                "description": "to be deleted",
+                "content": "content",
+            },
+        )
         profile_id = create_resp.json()["id"]
 
         # 削除
@@ -146,11 +159,14 @@ class TestFullProvenanceFlow:
 
     async def test_profile_lifecycle(self, client):
         # 1. プロファイル作成
-        resp = await client.post("/profiles", json={
-            "name": "lifecycle-test",
-            "description": "Full lifecycle",
-            "content": "You are an assistant.",
-        })
+        resp = await client.post(
+            "/profiles",
+            json={
+                "name": "lifecycle-test",
+                "description": "Full lifecycle",
+                "content": "You are an assistant.",
+            },
+        )
         assert resp.status_code == 201
         pid = resp.json()["id"]
 

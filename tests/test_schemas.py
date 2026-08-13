@@ -1,4 +1,5 @@
 import pytest
+from pydantic import ValidationError
 
 from crucible_agent.api.schemas import (
     AgentRunOptions,
@@ -18,7 +19,7 @@ class TestAgentRunRequest:
         assert req.message == "hello"
 
     def test_missing_message_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             AgentRunRequest()
 
     def test_optional_session_id_default(self):

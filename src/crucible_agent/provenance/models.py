@@ -36,7 +36,9 @@ class ProvenanceAgent(Base):
     server_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     # User 用: フロントエンド側のユーザーID
     external_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
 
 
 class ProvenanceActivity(Base):
@@ -53,7 +55,9 @@ class ProvenanceActivity(Base):
     output_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     duration_ms: Mapped[int | None] = mapped_column(nullable=True)
     agent_id: Mapped[str | None] = mapped_column(ForeignKey("prov_agents.id"), nullable=True)
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     agent: Mapped[ProvenanceAgent | None] = relationship()
@@ -69,8 +73,12 @@ class ProvenanceEntity(Base):
     type: Mapped[str] = mapped_column(String(50))  # "user_message", "agent_response", "tool_result"
     content: Mapped[str | None] = mapped_column(Text, nullable=True)
     metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    generated_by: Mapped[str | None] = mapped_column(ForeignKey("prov_activities.id"), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    generated_by: Mapped[str | None] = mapped_column(
+        ForeignKey("prov_activities.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
 
     activity: Mapped[ProvenanceActivity | None] = relationship()
 
@@ -99,8 +107,12 @@ class ProvenanceDerivation(Base):
     __tablename__ = "prov_derivations"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    derived_entity_id: Mapped[str] = mapped_column(ForeignKey("prov_entities.id", ondelete="CASCADE"))
-    source_entity_id: Mapped[str] = mapped_column(ForeignKey("prov_entities.id", ondelete="CASCADE"))
+    derived_entity_id: Mapped[str] = mapped_column(
+        ForeignKey("prov_entities.id", ondelete="CASCADE")
+    )
+    source_entity_id: Mapped[str] = mapped_column(
+        ForeignKey("prov_entities.id", ondelete="CASCADE")
+    )
     # "wasDerivedFrom": 直接派生 / "wasInfluencedBy": 手動引用 / "wasRevisionOf": 改訂
     relation_type: Mapped[str] = mapped_column(String(50), default="wasDerivedFrom")
     created_at: Mapped[datetime] = mapped_column(
@@ -121,5 +133,9 @@ class Profile(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     content: Mapped[str] = mapped_column(Text)  # Markdown システムプロンプト本文
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )

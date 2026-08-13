@@ -148,6 +148,5 @@ class TestSessionList:
         )
 
         # メッセージエリアがクリアされている
-        messages = chat_page.locator("#messages")
         # 新規セッションでは user/agent メッセージが消える
         assert chat_page.locator(".msg.user").count() == 0

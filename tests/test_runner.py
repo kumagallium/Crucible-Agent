@@ -1,9 +1,9 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from crucible_agent.crucible.discovery import DiscoveredServer
 from crucible_agent.agent.adapter import AdapterResult, StreamEvent
+from crucible_agent.crucible.discovery import DiscoveredServer
 
 
 def _make_server(**overrides):
@@ -31,7 +31,9 @@ def discovered_servers():
 class TestResolveServers:
     @pytest.mark.asyncio
     async def test_with_explicit_names_filters(self, discovered_servers):
-        with patch("crucible_agent.agent.runner.discover_servers", new_callable=AsyncMock) as mock_disc:
+        with patch(
+            "crucible_agent.agent.runner.discover_servers", new_callable=AsyncMock
+        ) as mock_disc:
             mock_disc.return_value = discovered_servers
             from crucible_agent.agent.runner import _resolve_servers
 
@@ -43,7 +45,9 @@ class TestResolveServers:
 
     @pytest.mark.asyncio
     async def test_with_none_returns_all(self, discovered_servers):
-        with patch("crucible_agent.agent.runner.discover_servers", new_callable=AsyncMock) as mock_disc:
+        with patch(
+            "crucible_agent.agent.runner.discover_servers", new_callable=AsyncMock
+        ) as mock_disc:
             mock_disc.return_value = discovered_servers
             from crucible_agent.agent.runner import _resolve_servers
 
@@ -54,7 +58,9 @@ class TestResolveServers:
 
     @pytest.mark.asyncio
     async def test_with_no_results_returns_empty(self):
-        with patch("crucible_agent.agent.runner.discover_servers", new_callable=AsyncMock) as mock_disc:
+        with patch(
+            "crucible_agent.agent.runner.discover_servers", new_callable=AsyncMock
+        ) as mock_disc:
             mock_disc.return_value = []
             from crucible_agent.agent.runner import _resolve_servers
 
@@ -73,9 +79,13 @@ class TestRunAgent:
             token_usage={"total_tokens": 100},
         )
 
-        with patch("crucible_agent.agent.runner.discover_servers", new_callable=AsyncMock) as mock_disc, \
-             patch("crucible_agent.agent.runner.adapter_run", new_callable=AsyncMock) as mock_run, \
-             patch("crucible_agent.agent.runner.build_instruction", return_value="sys prompt"):
+        with (
+            patch(
+                "crucible_agent.agent.runner.discover_servers", new_callable=AsyncMock
+            ) as mock_disc,
+            patch("crucible_agent.agent.runner.adapter_run", new_callable=AsyncMock) as mock_run,
+            patch("crucible_agent.agent.runner.build_instruction", return_value="sys prompt"),
+        ):
             mock_disc.return_value = discovered_servers
             mock_run.return_value = mock_result
             from crucible_agent.agent.runner import run_agent
@@ -91,9 +101,15 @@ class TestRunAgent:
     async def test_with_profile(self, discovered_servers):
         mock_result = AdapterResult(message="ok", tool_calls=[], token_usage={})
 
-        with patch("crucible_agent.agent.runner.discover_servers", new_callable=AsyncMock) as mock_disc, \
-             patch("crucible_agent.agent.runner.adapter_run", new_callable=AsyncMock) as mock_run, \
-             patch("crucible_agent.agent.runner.build_instruction", return_value="profile prompt") as mock_build:
+        with (
+            patch(
+                "crucible_agent.agent.runner.discover_servers", new_callable=AsyncMock
+            ) as mock_disc,
+            patch("crucible_agent.agent.runner.adapter_run", new_callable=AsyncMock) as mock_run,
+            patch(
+                "crucible_agent.agent.runner.build_instruction", return_value="profile prompt"
+            ) as mock_build,
+        ):
             mock_disc.return_value = discovered_servers
             mock_run.return_value = mock_result
             from crucible_agent.agent.runner import run_agent
@@ -106,9 +122,15 @@ class TestRunAgent:
     async def test_with_custom_instructions(self, discovered_servers):
         mock_result = AdapterResult(message="ok", tool_calls=[], token_usage={})
 
-        with patch("crucible_agent.agent.runner.discover_servers", new_callable=AsyncMock) as mock_disc, \
-             patch("crucible_agent.agent.runner.adapter_run", new_callable=AsyncMock) as mock_run, \
-             patch("crucible_agent.agent.runner.build_instruction", return_value="custom prompt") as mock_build:
+        with (
+            patch(
+                "crucible_agent.agent.runner.discover_servers", new_callable=AsyncMock
+            ) as mock_disc,
+            patch("crucible_agent.agent.runner.adapter_run", new_callable=AsyncMock) as mock_run,
+            patch(
+                "crucible_agent.agent.runner.build_instruction", return_value="custom prompt"
+            ) as mock_build,
+        ):
             mock_disc.return_value = discovered_servers
             mock_run.return_value = mock_result
             from crucible_agent.agent.runner import run_agent
@@ -121,9 +143,13 @@ class TestRunAgent:
     async def test_generates_session_id_when_none(self, discovered_servers):
         mock_result = AdapterResult(message="ok", tool_calls=[], token_usage={})
 
-        with patch("crucible_agent.agent.runner.discover_servers", new_callable=AsyncMock) as mock_disc, \
-             patch("crucible_agent.agent.runner.adapter_run", new_callable=AsyncMock) as mock_run, \
-             patch("crucible_agent.agent.runner.build_instruction", return_value="prompt"):
+        with (
+            patch(
+                "crucible_agent.agent.runner.discover_servers", new_callable=AsyncMock
+            ) as mock_disc,
+            patch("crucible_agent.agent.runner.adapter_run", new_callable=AsyncMock) as mock_run,
+            patch("crucible_agent.agent.runner.build_instruction", return_value="prompt"),
+        ):
             mock_disc.return_value = discovered_servers
             mock_run.return_value = mock_result
             from crucible_agent.agent.runner import run_agent
@@ -141,9 +167,13 @@ class TestRunAgentStream:
             yield StreamEvent(type="text_delta", content="hi")
             yield StreamEvent(type="done")
 
-        with patch("crucible_agent.agent.runner.discover_servers", new_callable=AsyncMock) as mock_disc, \
-             patch("crucible_agent.agent.runner.adapter_run_stream", side_effect=fake_stream), \
-             patch("crucible_agent.agent.runner.build_instruction", return_value="prompt"):
+        with (
+            patch(
+                "crucible_agent.agent.runner.discover_servers", new_callable=AsyncMock
+            ) as mock_disc,
+            patch("crucible_agent.agent.runner.adapter_run_stream", side_effect=fake_stream),
+            patch("crucible_agent.agent.runner.build_instruction", return_value="prompt"),
+        ):
             mock_disc.return_value = discovered_servers
             from crucible_agent.agent.runner import run_agent_stream
 
@@ -163,9 +193,15 @@ class TestRunAgentStream:
 
         mock_callback = AsyncMock()
 
-        with patch("crucible_agent.agent.runner.discover_servers", new_callable=AsyncMock) as mock_disc, \
-             patch("crucible_agent.agent.runner.adapter_run_stream", side_effect=fake_stream) as mock_stream, \
-             patch("crucible_agent.agent.runner.build_instruction", return_value="prompt"):
+        with (
+            patch(
+                "crucible_agent.agent.runner.discover_servers", new_callable=AsyncMock
+            ) as mock_disc,
+            patch(
+                "crucible_agent.agent.runner.adapter_run_stream", side_effect=fake_stream
+            ) as mock_stream,
+            patch("crucible_agent.agent.runner.build_instruction", return_value="prompt"),
+        ):
             mock_disc.return_value = discovered_servers
             from crucible_agent.agent.runner import run_agent_stream
 

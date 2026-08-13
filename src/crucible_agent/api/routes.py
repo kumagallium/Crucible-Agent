@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hmac
 import json
 import logging
@@ -13,8 +14,7 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-from crucible_agent import __version__
-from crucible_agent import litellm_config
+from crucible_agent import __version__, litellm_config
 from crucible_agent.agent.runner import run_agent, run_agent_stream
 from crucible_agent.api.auth import verify_api_key
 from crucible_agent.api.schemas import (
@@ -132,15 +132,17 @@ async def models_list() -> dict:
     for m in litellm_config.list_models():
         raw_model = m.get("litellm_params", {}).get("model", "")
         api_base = m.get("litellm_params", {}).get("api_base", "")
-        models.append({
-            "name": m.get("model_name", ""),
-            "provider": raw_model.split("/")[0] if "/" in raw_model else "unknown",
-            "model_id": raw_model,
-            "api_base": api_base,
-            "supports_function_calling": m.get("litellm_params", {}).get(
-                "supports_function_calling", False
-            ),
-        })
+        models.append(
+            {
+                "name": m.get("model_name", ""),
+                "provider": raw_model.split("/")[0] if "/" in raw_model else "unknown",
+                "model_id": raw_model,
+                "api_base": api_base,
+                "supports_function_calling": m.get("litellm_params", {}).get(
+                    "supports_function_calling", False
+                ),
+            }
+        )
     return {"models": models, "default": _resolve_default_model()}
 
 
@@ -210,9 +212,7 @@ async def _fetch_anthropic_models(api_base: str, api_key: str) -> list[str]:
             resp = await client.get(url, headers=headers, params=params)
             resp.raise_for_status()
             data = resp.json()
-            all_models.extend(
-                m["id"] for m in data.get("data", []) if m.get("id")
-            )
+            all_models.extend(m["id"] for m in data.get("data", []) if m.get("id"))
             if not data.get("has_more"):
                 break
             params["after_id"] = data["last_id"]
@@ -237,7 +237,7 @@ async def _fetch_gemini_models(api_base: str, api_key: str) -> list[str]:
                 name = m.get("name", "")
                 # "models/" プレフィックスを除去
                 if name.startswith("models/"):
-                    name = name[len("models/"):]
+                    name = name[len("models/") :]
                 if name:
                     all_models.append(name)
             next_token = data.get("nextPageToken")
@@ -275,7 +275,7 @@ async def models_available(req: _ProviderModelsRequest) -> dict:
             detail = "API キーが無効です"
         elif e.response.status_code == 403:
             detail = "API キーに権限がありません"
-        raise HTTPException(status_code=502, detail=detail)
+        raise HTTPException(status_code=502, detail=detail) from e
     except Exception as e:
         logger.warning("models_available: プロバイダー API への接続失敗 — %s", e)
         raise HTTPException(
@@ -358,9 +358,7 @@ async def _find_litellm_container(client: httpx.AsyncClient) -> str:
         raise HTTPException(status_code=500, detail="Failed to list Docker containers")
     containers = resp.json()
     if not containers:
-        raise HTTPException(
-            status_code=500, detail="LiteLLM container not found"
-        )
+        raise HTTPException(status_code=500, detail="LiteLLM container not found")
     return containers[0]["Id"]
 
 
@@ -377,17 +375,15 @@ async def _restart_litellm() -> None:
             )
             if resp.status_code not in (204, 304):
                 logger.error("Failed to restart LiteLLM: %s", resp.text)
-                raise HTTPException(
-                    status_code=500, detail="Failed to restart LiteLLM"
-                )
+                raise HTTPException(status_code=500, detail="Failed to restart LiteLLM")
         # LiteLLM が起動するまで待機
         await asyncio.sleep(10)
-    except httpx.ConnectError:
+    except httpx.ConnectError as e:
         logger.error("Cannot connect to Docker socket")
         raise HTTPException(
             status_code=500,
             detail="Cannot connect to Docker socket",
-        )
+        ) from e
 
 
 @_authed_router.get("/tools", response_model=ToolsResponse)
@@ -706,10 +702,11 @@ async def agent_ws(
     # WebSocket は HTTP ヘッダー Dependency が効かないため、クエリパラメータで検証
     # accept() してから close() しないとブラウザに close code が届かない
     await websocket.accept()
-    if settings.agent_api_key:
-        if api_key is None or not hmac.compare_digest(api_key, settings.agent_api_key):
-            await websocket.close(code=4001, reason="Invalid or missing API key")
-            return
+    if settings.agent_api_key and (
+        api_key is None or not hmac.compare_digest(api_key, settings.agent_api_key)
+    ):
+        await websocket.close(code=4001, reason="Invalid or missing API key")
+        return
     session_id = session_id or str(uuid.uuid4())
 
     # Plan モード用: tool_call_id → Future[bool]
@@ -850,10 +847,9 @@ async def agent_ws(
 
     except Exception as e:
         logger.exception("WebSocket error (session=%s)", session_id)
-        try:
+        # 相手が既に切断していれば送信は失敗する。ここで握り潰して finally に進む
+        with contextlib.suppress(Exception):
             await websocket.send_json({"type": "error", "content": str(e)})
-        except Exception:
-            pass
     finally:
         logger.info("WebSocket closed (session=%s)", session_id)
         for future in pending_approvals.values():
