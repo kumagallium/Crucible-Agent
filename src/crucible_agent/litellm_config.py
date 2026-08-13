@@ -74,9 +74,7 @@ def remove_model(model_name: str) -> None:
     model_list = _get_model_list(data)
 
     original_len = len(model_list)
-    data["model_list"] = [
-        m for m in model_list if m.get("model_name") != model_name
-    ]
+    data["model_list"] = [m for m in model_list if m.get("model_name") != model_name]
     removed = original_len - len(data["model_list"])
     if removed:
         _write(data)

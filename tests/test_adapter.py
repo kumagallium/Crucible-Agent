@@ -7,7 +7,6 @@ import pytest
 
 from crucible_agent.agent.adapter import (
     AdapterResult,
-    StreamEvent,
     _call_tool,
     run,
     run_stream,
@@ -55,8 +54,12 @@ class TestRun:
             "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
         }
 
-        with patch("crucible_agent.agent.adapter._connect_servers", new_callable=AsyncMock) as mock_connect, \
-             patch("crucible_agent.agent.adapter._call_llm", new_callable=AsyncMock) as mock_llm:
+        with (
+            patch(
+                "crucible_agent.agent.adapter._connect_servers", new_callable=AsyncMock
+            ) as mock_connect,
+            patch("crucible_agent.agent.adapter._call_llm", new_callable=AsyncMock) as mock_llm,
+        ):
             mock_connect.return_value = ({}, [])
             mock_llm.return_value = llm_response
 
@@ -71,14 +74,20 @@ class TestRun:
     async def test_tool_call_loop(self):
         # 1回目: LLM がツール呼び出し
         llm_tool_response = {
-            "choices": [{"message": {
-                "role": "assistant",
-                "content": None,
-                "tool_calls": [{
-                    "id": "tc1",
-                    "function": {"name": "search", "arguments": '{"q": "test"}'},
-                }],
-            }}],
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "tc1",
+                                "function": {"name": "search", "arguments": '{"q": "test"}'},
+                            }
+                        ],
+                    }
+                }
+            ],
             "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
         }
         # 2回目: LLM がテキスト応答
@@ -94,9 +103,16 @@ class TestRun:
         mock_result.content = [mock_block]
         mock_session.call_tool = AsyncMock(return_value=mock_result)
 
-        with patch("crucible_agent.agent.adapter._connect_servers", new_callable=AsyncMock) as mock_connect, \
-             patch("crucible_agent.agent.adapter._call_llm", new_callable=AsyncMock) as mock_llm:
-            mock_connect.return_value = ({"search": mock_session}, [{"type": "function", "function": {"name": "search"}}])
+        with (
+            patch(
+                "crucible_agent.agent.adapter._connect_servers", new_callable=AsyncMock
+            ) as mock_connect,
+            patch("crucible_agent.agent.adapter._call_llm", new_callable=AsyncMock) as mock_llm,
+        ):
+            mock_connect.return_value = (
+                {"search": mock_session},
+                [{"type": "function", "function": {"name": "search"}}],
+            )
             mock_llm.side_effect = [llm_tool_response, llm_text_response]
 
             result = await run("instruction", "hello")
@@ -114,8 +130,12 @@ class TestRunStream:
             "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
         }
 
-        with patch("crucible_agent.agent.adapter._connect_servers", new_callable=AsyncMock) as mock_connect, \
-             patch("crucible_agent.agent.adapter._call_llm", new_callable=AsyncMock) as mock_llm:
+        with (
+            patch(
+                "crucible_agent.agent.adapter._connect_servers", new_callable=AsyncMock
+            ) as mock_connect,
+            patch("crucible_agent.agent.adapter._call_llm", new_callable=AsyncMock) as mock_llm,
+        ):
             mock_connect.return_value = ({}, [])
             mock_llm.return_value = llm_response
 
@@ -131,14 +151,20 @@ class TestRunStream:
     @pytest.mark.asyncio
     async def test_tool_call_stream(self):
         llm_tool_response = {
-            "choices": [{"message": {
-                "role": "assistant",
-                "content": None,
-                "tool_calls": [{
-                    "id": "tc1",
-                    "function": {"name": "calc", "arguments": '{"x": 1}'},
-                }],
-            }}],
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "tc1",
+                                "function": {"name": "calc", "arguments": '{"x": 1}'},
+                            }
+                        ],
+                    }
+                }
+            ],
             "usage": {"prompt_tokens": 5, "completion_tokens": 3, "total_tokens": 8},
         }
         llm_text_response = {
@@ -153,8 +179,12 @@ class TestRunStream:
         mock_result.content = [mock_block]
         mock_session.call_tool = AsyncMock(return_value=mock_result)
 
-        with patch("crucible_agent.agent.adapter._connect_servers", new_callable=AsyncMock) as mock_connect, \
-             patch("crucible_agent.agent.adapter._call_llm", new_callable=AsyncMock) as mock_llm:
+        with (
+            patch(
+                "crucible_agent.agent.adapter._connect_servers", new_callable=AsyncMock
+            ) as mock_connect,
+            patch("crucible_agent.agent.adapter._call_llm", new_callable=AsyncMock) as mock_llm,
+        ):
             mock_connect.return_value = ({"calc": mock_session}, [])
             mock_llm.side_effect = [llm_tool_response, llm_text_response]
 
@@ -170,8 +200,12 @@ class TestRunStream:
 
     @pytest.mark.asyncio
     async def test_error_event_on_exception(self):
-        with patch("crucible_agent.agent.adapter._connect_servers", new_callable=AsyncMock) as mock_connect, \
-             patch("crucible_agent.agent.adapter._call_llm", new_callable=AsyncMock) as mock_llm:
+        with (
+            patch(
+                "crucible_agent.agent.adapter._connect_servers", new_callable=AsyncMock
+            ) as mock_connect,
+            patch("crucible_agent.agent.adapter._call_llm", new_callable=AsyncMock) as mock_llm,
+        ):
             mock_connect.return_value = ({}, [])
             mock_llm.side_effect = RuntimeError("LLM down")
 

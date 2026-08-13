@@ -135,9 +135,7 @@ async def _build_context_prefix(context_ids: list[str]) -> str:
     for entity_id in context_ids:
         entity = await get_entity(entity_id)
         if entity and entity.content:
-            context_blocks.append(
-                f"[引用されたメッセージ]\n{entity.content}"
-            )
+            context_blocks.append(f"[引用されたメッセージ]\n{entity.content}")
 
     if not context_blocks:
         return ""
@@ -206,7 +204,9 @@ async def run_agent_stream(
 ) -> AsyncIterator[StreamEvent]:
     """エージェントを実行し、イベントをストリームする（WebSocket 用）"""
     instruction = instruction or await _build_instruction_with_contexts(
-        profile, custom_instructions, context_ids or [],
+        profile,
+        custom_instructions,
+        context_ids or [],
     )
     # 引用コンテキストをユーザーメッセージに直接付与（LLM が確実に参照するため）
     context_prefix = await _build_context_prefix(context_ids or [])

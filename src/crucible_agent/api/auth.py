@@ -2,7 +2,7 @@
 
 import hmac
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException
 from fastapi.security import APIKeyHeader
 
 from crucible_agent.config import settings

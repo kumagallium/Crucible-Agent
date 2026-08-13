@@ -12,17 +12,27 @@ class AgentRunOptions(BaseModel):
 
     max_turns: int = Field(default=10, description="最大ループ回数")
     require_approval: bool = Field(default=False, description="tool 実行前に承認を求めるか")
-    model: str | None = Field(default=None, description="使用モデル名（省略時は環境変数 LLM_MODEL）")
+    model: str | None = Field(
+        default=None, description="使用モデル名（省略時は環境変数 LLM_MODEL）"
+    )
 
 
 class AgentRunRequest(BaseModel):
     """POST /agent/run リクエスト"""
 
     message: str = Field(..., description="ユーザーのメッセージ")
-    session_id: str | None = Field(default=None, description="会話セッション ID（省略時は新規作成）")
-    profile: str | None = Field(default=None, description="プロンプトプロファイル名（例: science, general）")
-    custom_instructions: str | None = Field(default=None, description="カスタム指示（プロファイルに追加）")
-    server_names: list[str] | None = Field(default=None, description="使用するツール名リスト（省略時は全ツール）")
+    session_id: str | None = Field(
+        default=None, description="会話セッション ID（省略時は新規作成）"
+    )
+    profile: str | None = Field(
+        default=None, description="プロンプトプロファイル名（例: science, general）"
+    )
+    custom_instructions: str | None = Field(
+        default=None, description="カスタム指示（プロファイルに追加）"
+    )
+    server_names: list[str] | None = Field(
+        default=None, description="使用するツール名リスト（省略時は全ツール）"
+    )
     options: AgentRunOptions = Field(default_factory=AgentRunOptions)
     context_ids: list[str] = Field(
         default_factory=list,

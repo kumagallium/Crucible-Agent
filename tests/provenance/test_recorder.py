@@ -16,7 +16,6 @@ from crucible_agent.provenance.models import (
 from crucible_agent.provenance.recorder import (
     delete_session,
     get_conversation_history,
-    get_conversation_history_until,
     get_entity,
     get_provenance_graph,
     get_session_history,
@@ -94,8 +93,17 @@ class TestRecordAgentRun:
 
     async def test_tool_calls_create_separate_records(self, patch_session_factory):
         tool_calls = [
-            {"tool_name": "search", "server_name": "mcp-search", "input": {"q": "test"}, "output": {"r": "ok"}},
-            {"tool_name": "fetch", "input": {"url": "http://example.com"}, "output": {"html": "<p>hi</p>"}},
+            {
+                "tool_name": "search",
+                "server_name": "mcp-search",
+                "input": {"q": "test"},
+                "output": {"r": "ok"},
+            },
+            {
+                "tool_name": "fetch",
+                "input": {"url": "http://example.com"},
+                "output": {"html": "<p>hi</p>"},
+            },
         ]
 
         await record_agent_run(
@@ -167,9 +175,11 @@ class TestRecordAgentRun:
             activity = (await db.execute(select(ProvenanceActivity))).scalar_one()
             assert len(activity.output_data["response"]) <= 1000
 
-            entity = (await db.execute(
-                select(ProvenanceEntity).where(ProvenanceEntity.type == "agent_response")
-            )).scalar_one()
+            entity = (
+                await db.execute(
+                    select(ProvenanceEntity).where(ProvenanceEntity.type == "agent_response")
+                )
+            ).scalar_one()
             assert len(entity.content) <= 5000
 
     async def test_context_ids_create_derivations(self, patch_session_factory):
@@ -182,7 +192,7 @@ class TestRecordAgentRun:
             tool_calls=[],
         )
 
-        r2 = await record_agent_run(
+        await record_agent_run(
             session_id="s2",
             user_message="derived",
             agent_response="derived resp",
@@ -254,14 +264,26 @@ class TestDeleteSession:
         assert deleted is True
 
         async with patch_session_factory() as db:
-            activities = (await db.execute(
-                select(ProvenanceActivity).where(ProvenanceActivity.session_id == "s1")
-            )).scalars().all()
+            activities = (
+                (
+                    await db.execute(
+                        select(ProvenanceActivity).where(ProvenanceActivity.session_id == "s1")
+                    )
+                )
+                .scalars()
+                .all()
+            )
             assert len(activities) == 0
 
-            entities = (await db.execute(
-                select(ProvenanceEntity).where(ProvenanceEntity.session_id == "s1")
-            )).scalars().all()
+            entities = (
+                (
+                    await db.execute(
+                        select(ProvenanceEntity).where(ProvenanceEntity.session_id == "s1")
+                    )
+                )
+                .scalars()
+                .all()
+            )
             assert len(entities) == 0
 
     async def test_nonexistent_session_returns_false(self, patch_session_factory):
@@ -285,8 +307,12 @@ class TestGetConversationHistory:
         assert history[1]["role"] == "assistant"
 
     async def test_multi_turn(self, patch_session_factory):
-        await record_agent_run(session_id="s1", user_message="hi", agent_response="hello", tool_calls=[])
-        await record_agent_run(session_id="s1", user_message="how?", agent_response="fine", tool_calls=[])
+        await record_agent_run(
+            session_id="s1", user_message="hi", agent_response="hello", tool_calls=[]
+        )
+        await record_agent_run(
+            session_id="s1", user_message="how?", agent_response="fine", tool_calls=[]
+        )
 
         history = await get_conversation_history("s1")
         assert len(history) == 4
@@ -341,7 +367,7 @@ class TestGetProvenanceGraph:
             agent_response="source resp",
             tool_calls=[],
         )
-        r2 = await record_agent_run(
+        await record_agent_run(
             session_id="s2",
             user_message="derived",
             agent_response="derived resp",

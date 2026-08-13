@@ -158,8 +158,7 @@ def _build_cli_tool_defs(cli_tools: list[DiscoveredCliLibrary]) -> list[dict]:
 
             template_vars = _extract_template_vars(run_cmd)
             properties: dict = {
-                var: {"type": "string", "description": f"Parameter: {var}"}
-                for var in template_vars
+                var: {"type": "string", "description": f"Parameter: {var}"} for var in template_vars
             }
             required = template_vars
         else:
@@ -411,7 +410,7 @@ async def run(
             tool_calls_log: list[dict] = []
             total_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
 
-            for turn in range(max_turns):
+            for _turn in range(max_turns):
                 resp = await _call_llm(messages, tools if tools else None, model=model)
 
                 usage = resp.get("usage", {})
@@ -549,7 +548,7 @@ async def run_stream(
 
             total_usage = {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
 
-            for turn in range(max_turns):
+            for _turn in range(max_turns):
                 resp = await _call_llm(messages, tools if tools else None, model=model)
 
                 usage = resp.get("usage", {})

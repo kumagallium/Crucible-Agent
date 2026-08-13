@@ -92,11 +92,13 @@ async def record_agent_run(
         await db.flush()  # user_entity.id を確定させる
 
         # prov:used — agent_run が user_message を入力として使った
-        db.add(ProvenanceUsage(
-            activity_id=activity.id,
-            entity_id=user_entity.id,
-            role="input",
-        ))
+        db.add(
+            ProvenanceUsage(
+                activity_id=activity.id,
+                entity_id=user_entity.id,
+                role="input",
+            )
+        )
 
         # prov:used — 前ターンの agent_response をコンテキストとして使った
         # リレーションベース: Activity チェーンを辿る
@@ -121,9 +123,7 @@ async def record_agent_run(
                 )
                 prev_ctx = ctx_result.scalar_one_or_none()
                 if prev_ctx:
-                    prev_resp_entity = await db.get(
-                        ProvenanceEntity, prev_ctx.entity_id
-                    )
+                    prev_resp_entity = await db.get(ProvenanceEntity, prev_ctx.entity_id)
         else:
             # 通常: このセッションの直前の Activity の出力を取得
             prev_act_result = await db.execute(
@@ -144,11 +144,13 @@ async def record_agent_run(
                 prev_resp_entity = resp_result.scalar_one_or_none()
 
         if prev_resp_entity:
-            db.add(ProvenanceUsage(
-                activity_id=activity.id,
-                entity_id=prev_resp_entity.id,
-                role="context",
-            ))
+            db.add(
+                ProvenanceUsage(
+                    activity_id=activity.id,
+                    entity_id=prev_resp_entity.id,
+                    role="context",
+                )
+            )
 
         # Entity: エージェント応答
         response_entity = ProvenanceEntity(
@@ -161,12 +163,14 @@ async def record_agent_run(
         await db.flush()
 
         # prov:wasInfluencedBy — 手動引用した過去 Entity との関係を記録
-        for source_id in (context_ids or []):
-            db.add(ProvenanceDerivation(
-                derived_entity_id=response_entity.id,
-                source_entity_id=source_id,
-                relation_type="wasInfluencedBy",
-            ))
+        for source_id in context_ids or []:
+            db.add(
+                ProvenanceDerivation(
+                    derived_entity_id=response_entity.id,
+                    source_entity_id=source_id,
+                    relation_type="wasInfluencedBy",
+                )
+            )
 
         # tool_use ごとに Activity + Entity を記録
         for tc in tool_calls:
@@ -204,11 +208,13 @@ async def record_agent_run(
             await db.flush()
 
             # prov:used — agent_run が tool_result を入力として使った
-            db.add(ProvenanceUsage(
-                activity_id=activity.id,
-                entity_id=tool_result_entity.id,
-                role="tool_result",
-            ))
+            db.add(
+                ProvenanceUsage(
+                    activity_id=activity.id,
+                    entity_id=tool_result_entity.id,
+                    role="tool_result",
+                )
+            )
 
         await db.commit()
         logger.info("Provenance recorded (session=%s, activity=%s)", session_id, activity.id)
@@ -225,11 +231,13 @@ async def record_revision(
 ) -> None:
     """編集による wasRevisionOf 関係を記録する"""
     async with _session_factory() as db:
-        db.add(ProvenanceDerivation(
-            derived_entity_id=new_entity_id,
-            source_entity_id=original_entity_id,
-            relation_type="wasRevisionOf",
-        ))
+        db.add(
+            ProvenanceDerivation(
+                derived_entity_id=new_entity_id,
+                source_entity_id=original_entity_id,
+                relation_type="wasRevisionOf",
+            )
+        )
         await db.commit()
         logger.info(
             "Revision recorded: %s wasRevisionOf %s",
@@ -273,17 +281,13 @@ async def delete_session(session_id: str) -> bool:
     async with _session_factory() as db:
         # セッションに属する Activity ID を取得
         act_result = await db.execute(
-            select(ProvenanceActivity.id).where(
-                ProvenanceActivity.session_id == session_id
-            )
+            select(ProvenanceActivity.id).where(ProvenanceActivity.session_id == session_id)
         )
         activity_ids = [r[0] for r in act_result.all()]
 
         # セッションに属する Entity ID を取得
         ent_result = await db.execute(
-            select(ProvenanceEntity.id).where(
-                ProvenanceEntity.session_id == session_id
-            )
+            select(ProvenanceEntity.id).where(ProvenanceEntity.session_id == session_id)
         )
         entity_ids = [r[0] for r in ent_result.all()]
 
@@ -300,20 +304,14 @@ async def delete_session(session_id: str) -> bool:
             )
         if activity_ids:
             await db.execute(
-                delete(ProvenanceUsage).where(
-                    ProvenanceUsage.activity_id.in_(activity_ids)
-                )
+                delete(ProvenanceUsage).where(ProvenanceUsage.activity_id.in_(activity_ids))
             )
         if entity_ids:
             await db.execute(
-                delete(ProvenanceEntity).where(
-                    ProvenanceEntity.session_id == session_id
-                )
+                delete(ProvenanceEntity).where(ProvenanceEntity.session_id == session_id)
             )
         await db.execute(
-            delete(ProvenanceActivity).where(
-                ProvenanceActivity.session_id == session_id
-            )
+            delete(ProvenanceActivity).where(ProvenanceActivity.session_id == session_id)
         )
 
         await db.commit()
@@ -364,9 +362,7 @@ async def get_conversation_history(session_id: str) -> list[dict]:
             if not ctx_entity or not ctx_entity.generated_by:
                 break
 
-            prev_activity = await db.get(
-                ProvenanceActivity, ctx_entity.generated_by
-            )
+            prev_activity = await db.get(ProvenanceActivity, ctx_entity.generated_by)
             if not prev_activity:
                 break
 
@@ -457,16 +453,16 @@ async def get_session_history(session_id: str) -> list[dict]:
             derivation_result = await db.execute(
                 select(ProvenanceDerivation)
                 .where(ProvenanceDerivation.relation_type == "wasRevisionOf")
-                .where(or_(
-                    ProvenanceDerivation.derived_entity_id.in_(all_entity_ids),
-                    ProvenanceDerivation.source_entity_id.in_(all_entity_ids),
-                ))
+                .where(
+                    or_(
+                        ProvenanceDerivation.derived_entity_id.in_(all_entity_ids),
+                        ProvenanceDerivation.source_entity_id.in_(all_entity_ids),
+                    )
+                )
             )
             for d in derivation_result.scalars().all():
                 revision_of[d.derived_entity_id] = d.source_entity_id
-                revisions_for.setdefault(d.source_entity_id, []).append(
-                    d.derived_entity_id
-                )
+                revisions_for.setdefault(d.source_entity_id, []).append(d.derived_entity_id)
 
         items = []
         for a in activities:
@@ -522,21 +518,25 @@ async def get_provenance_graph(session_id: str) -> dict:
 
         for a in activities:
             label = a.tool_name if a.type == "tool_use" else a.type
-            _add_node({
-                "id": a.id,
-                "node_type": "activity",
-                "prov_type": a.type,
-                "label": label or a.type,
-                "session_id": a.session_id,
-                "created_at": a.started_at.isoformat() if a.started_at else None,
-            })
+            _add_node(
+                {
+                    "id": a.id,
+                    "node_type": "activity",
+                    "prov_type": a.type,
+                    "label": label or a.type,
+                    "session_id": a.session_id,
+                    "created_at": a.started_at.isoformat() if a.started_at else None,
+                }
+            )
             # wasAssociatedWith: Activity → Agent
             if a.agent_id:
-                edges.append({
-                    "source": a.id,
-                    "target": a.agent_id,
-                    "relation": "wasAssociatedWith",
-                })
+                edges.append(
+                    {
+                        "source": a.id,
+                        "target": a.agent_id,
+                        "relation": "wasAssociatedWith",
+                    }
+                )
 
         # --- Agents ---
         if agent_ids:
@@ -544,16 +544,18 @@ async def get_provenance_graph(session_id: str) -> dict:
                 select(ProvenanceAgent).where(ProvenanceAgent.id.in_(agent_ids))
             )
             for ag in agent_result.scalars().all():
-                _add_node({
-                    "id": ag.id,
-                    "node_type": "agent",
-                    "prov_type": ag.type,
-                    "label": ag.model_id or ag.name,
-                    "session_id": None,
-                    "created_at": ag.created_at.isoformat() if ag.created_at else None,
-                    "provider": ag.provider,
-                    "model_id": ag.model_id,
-                })
+                _add_node(
+                    {
+                        "id": ag.id,
+                        "node_type": "agent",
+                        "prov_type": ag.type,
+                        "label": ag.model_id or ag.name,
+                        "session_id": None,
+                        "created_at": ag.created_at.isoformat() if ag.created_at else None,
+                        "provider": ag.provider,
+                        "model_id": ag.model_id,
+                    }
+                )
 
         # --- Entities (このセッション) ---
         entity_result = await db.execute(
@@ -565,67 +567,77 @@ async def get_provenance_graph(session_id: str) -> dict:
         entity_ids = {e.id for e in entities}
 
         for e in entities:
-            _add_node({
-                "id": e.id,
-                "node_type": "entity",
-                "prov_type": e.type,
-                "label": (e.content or "")[:40] + ("..." if len(e.content or "") > 40 else ""),
-                "session_id": e.session_id,
-                "created_at": e.created_at.isoformat() if e.created_at else None,
-            })
+            _add_node(
+                {
+                    "id": e.id,
+                    "node_type": "entity",
+                    "prov_type": e.type,
+                    "label": (e.content or "")[:40] + ("..." if len(e.content or "") > 40 else ""),
+                    "session_id": e.session_id,
+                    "created_at": e.created_at.isoformat() if e.created_at else None,
+                }
+            )
             # wasGeneratedBy: Entity → Activity
             if e.generated_by:
-                edges.append({
-                    "source": e.id,
-                    "target": e.generated_by,
-                    "relation": "wasGeneratedBy",
-                })
+                edges.append(
+                    {
+                        "source": e.id,
+                        "target": e.generated_by,
+                        "relation": "wasGeneratedBy",
+                    }
+                )
 
         # --- prov_usage (used) ---
         activity_ids = {a.id for a in activities}
         if activity_ids:
             usage_result = await db.execute(
-                select(ProvenanceUsage)
-                .where(ProvenanceUsage.activity_id.in_(activity_ids))
+                select(ProvenanceUsage).where(ProvenanceUsage.activity_id.in_(activity_ids))
             )
             for u in usage_result.scalars().all():
-                edges.append({
-                    "source": u.activity_id,
-                    "target": u.entity_id,
-                    "relation": "used",
-                    "role": u.role,
-                })
+                edges.append(
+                    {
+                        "source": u.activity_id,
+                        "target": u.entity_id,
+                        "relation": "used",
+                        "role": u.role,
+                    }
+                )
 
         # --- prov_derivations (このセッションから外への参照のみ) ---
         # derived_entity_id がこのセッションの Entity = このセッションが参照した関係
         # source_entity_id がこのセッションの Entity = 他セッションから参照された関係（除外）
         deriv_result = await db.execute(
-            select(ProvenanceDerivation)
-            .where(ProvenanceDerivation.derived_entity_id.in_(entity_ids))
+            select(ProvenanceDerivation).where(
+                ProvenanceDerivation.derived_entity_id.in_(entity_ids)
+            )
         )
         for d in deriv_result.scalars().all():
             # source が別セッションなら stub ノードとして追加
             if d.source_entity_id not in entity_ids:
                 src_entity = await db.get(ProvenanceEntity, d.source_entity_id)
                 if src_entity:
-                    _add_node({
-                        "id": src_entity.id,
-                        "node_type": "entity",
-                        "prov_type": src_entity.type,
-                        "label": (
-                            (src_entity.content or "")[:40]
-                            + ("..." if len(src_entity.content or "") > 40 else "")
-                        ),
-                        "session_id": src_entity.session_id,
-                        "created_at": (
-                            src_entity.created_at.isoformat() if src_entity.created_at else None
-                        ),
-                    })
-            edges.append({
-                "source": d.derived_entity_id,
-                "target": d.source_entity_id,
-                "relation": d.relation_type,
-            })
+                    _add_node(
+                        {
+                            "id": src_entity.id,
+                            "node_type": "entity",
+                            "prov_type": src_entity.type,
+                            "label": (
+                                (src_entity.content or "")[:40]
+                                + ("..." if len(src_entity.content or "") > 40 else "")
+                            ),
+                            "session_id": src_entity.session_id,
+                            "created_at": (
+                                src_entity.created_at.isoformat() if src_entity.created_at else None
+                            ),
+                        }
+                    )
+            edges.append(
+                {
+                    "source": d.derived_entity_id,
+                    "target": d.source_entity_id,
+                    "relation": d.relation_type,
+                }
+            )
 
     return {"nodes": nodes, "edges": edges}
 
@@ -635,9 +647,7 @@ async def get_entity(entity_id: str) -> ProvenanceEntity | None:
     from sqlalchemy import select
 
     async with _session_factory() as db:
-        result = await db.execute(
-            select(ProvenanceEntity).where(ProvenanceEntity.id == entity_id)
-        )
+        result = await db.execute(select(ProvenanceEntity).where(ProvenanceEntity.id == entity_id))
         return result.scalar_one_or_none()
 
 
@@ -689,9 +699,7 @@ async def get_conversation_history_until(
             if not ctx_entity or not ctx_entity.generated_by:
                 break
 
-            prev_activity = await db.get(
-                ProvenanceActivity, ctx_entity.generated_by
-            )
+            prev_activity = await db.get(ProvenanceActivity, ctx_entity.generated_by)
             if not prev_activity:
                 break
 
@@ -774,11 +782,13 @@ async def record_branch_run(
         branch_response_entity = result.scalar_one_or_none()
 
         if branch_response_entity:
-            db.add(ProvenanceDerivation(
-                derived_entity_id=branch_response_entity.id,
-                source_entity_id=branch_from_entity_id,
-                relation_type="wasDerivedFrom",
-            ))
+            db.add(
+                ProvenanceDerivation(
+                    derived_entity_id=branch_response_entity.id,
+                    source_entity_id=branch_from_entity_id,
+                    relation_type="wasDerivedFrom",
+                )
+            )
             await db.commit()
             logger.info(
                 "Branch derivation recorded (parent=%s, branch=%s)",

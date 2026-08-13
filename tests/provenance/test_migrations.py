@@ -39,15 +39,18 @@ def _get_revision_ids() -> list[str]:
 def _create_base_tables(engine: sa.engine.Engine) -> None:
     """マイグレーション前のベーステーブルを作成（初期スキーマ）"""
     with engine.begin() as conn:
-        conn.execute(text("""
+        conn.execute(
+            text("""
             CREATE TABLE IF NOT EXISTS prov_agents (
                 id VARCHAR(36) PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
                 type VARCHAR(50) NOT NULL,
                 created_at DATETIME NOT NULL
             )
-        """))
-        conn.execute(text("""
+        """)
+        )
+        conn.execute(
+            text("""
             CREATE TABLE IF NOT EXISTS prov_activities (
                 id VARCHAR(36) PRIMARY KEY,
                 session_id VARCHAR(36) NOT NULL,
@@ -61,8 +64,10 @@ def _create_base_tables(engine: sa.engine.Engine) -> None:
                 started_at DATETIME NOT NULL,
                 ended_at DATETIME
             )
-        """))
-        conn.execute(text("""
+        """)
+        )
+        conn.execute(
+            text("""
             CREATE TABLE IF NOT EXISTS prov_entities (
                 id VARCHAR(36) PRIMARY KEY,
                 session_id VARCHAR(36) NOT NULL,
@@ -72,8 +77,10 @@ def _create_base_tables(engine: sa.engine.Engine) -> None:
                 generated_by VARCHAR(36) REFERENCES prov_activities(id),
                 created_at DATETIME NOT NULL
             )
-        """))
-        conn.execute(text("""
+        """)
+        )
+        conn.execute(
+            text("""
             CREATE TABLE IF NOT EXISTS profiles (
                 id VARCHAR(36) PRIMARY KEY,
                 name VARCHAR(255) UNIQUE NOT NULL,
@@ -83,7 +90,8 @@ def _create_base_tables(engine: sa.engine.Engine) -> None:
                 created_at DATETIME NOT NULL,
                 updated_at DATETIME NOT NULL
             )
-        """))
+        """)
+        )
 
 
 def _run_alembic_upgrade(engine: sa.engine.Engine, target: str) -> None:

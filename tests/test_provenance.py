@@ -6,8 +6,6 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from crucible_agent.provenance.models import (
     ProvenanceActivity,
     ProvenanceAgent,
@@ -38,9 +36,17 @@ class TestProvenanceActivityModel:
     def test_columns(self):
         col_names = {c.name for c in ProvenanceActivity.__table__.columns}
         expected = {
-            "id", "session_id", "type", "tool_name", "server_name",
-            "input_data", "output_data", "duration_ms", "agent_id",
-            "started_at", "ended_at",
+            "id",
+            "session_id",
+            "type",
+            "tool_name",
+            "server_name",
+            "input_data",
+            "output_data",
+            "duration_ms",
+            "agent_id",
+            "started_at",
+            "ended_at",
         }
         assert expected <= col_names
 
@@ -60,8 +66,13 @@ class TestProvenanceEntityModel:
     def test_columns(self):
         col_names = {c.name for c in ProvenanceEntity.__table__.columns}
         expected = {
-            "id", "session_id", "type", "content",
-            "metadata_json", "generated_by", "created_at",
+            "id",
+            "session_id",
+            "type",
+            "content",
+            "metadata_json",
+            "generated_by",
+            "created_at",
         }
         assert expected <= col_names
 
@@ -137,7 +148,12 @@ class TestRecordAgentRun:
         mock_factory, mock_session = _make_mock_session()
 
         tool_calls = [
-            {"tool_name": "search", "input": {"q": "test"}, "output": {"result": "ok"}, "duration_ms": 50},
+            {
+                "tool_name": "search",
+                "input": {"q": "test"},
+                "output": {"result": "ok"},
+                "duration_ms": 50,
+            },
         ]
 
         with patch("crucible_agent.provenance.recorder._session_factory", mock_factory):

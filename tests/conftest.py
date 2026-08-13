@@ -4,9 +4,13 @@ from unittest.mock import MagicMock
 
 # mcp-agent / asyncpg が未インストールでもテスト可能にする
 for mod in [
-    "mcp_agent", "mcp_agent.app", "mcp_agent.config",
-    "mcp_agent.agents", "mcp_agent.agents.agent",
-    "mcp_agent.workflows", "mcp_agent.workflows.llm",
+    "mcp_agent",
+    "mcp_agent.app",
+    "mcp_agent.config",
+    "mcp_agent.agents",
+    "mcp_agent.agents.agent",
+    "mcp_agent.workflows",
+    "mcp_agent.workflows.llm",
     "mcp_agent.workflows.llm.augmented_llm",
     "asyncpg",
 ]:
@@ -51,6 +55,7 @@ _config_mod.settings = _TestSettings()
 sys.modules["crucible_agent.config"] = _config_mod
 
 import pytest
+
 from crucible_agent.crucible.discovery import DiscoveredServer
 
 

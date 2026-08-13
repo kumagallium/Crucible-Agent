@@ -56,6 +56,7 @@ app.include_router(router)
 
 # Chat UI（/ でアクセス可能）
 if CHAT_UI_DIR.exists():
+
     @app.get("/", include_in_schema=False)
     async def chat_ui():
         return FileResponse(CHAT_UI_DIR / "index.html")

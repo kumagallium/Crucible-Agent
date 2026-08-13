@@ -15,8 +15,10 @@ for mod in [
     if mod not in sys.modules:
         sys.modules[mod] = MagicMock()
 
-import pytest
+from datetime import UTC
 from types import SimpleNamespace
+
+import pytest
 from fastapi.testclient import TestClient
 
 from crucible_agent.crucible.discovery import AllTools, DiscoveredServer
@@ -213,8 +215,9 @@ class TestProfilesEndpoint:
 
     @patch("crucible_agent.api.routes.create_profile", new_callable=AsyncMock)
     def test_create_profile(self, mock_create, client):
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc)
+        from datetime import datetime
+
+        now = datetime.now(UTC)
         mock_create.return_value = SimpleNamespace(
             id="new-id",
             name="custom",
